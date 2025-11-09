@@ -113,6 +113,10 @@ def initialize_db():
                 "domain": None,
                 "ton_wallet_address": None,
                 "tonapi_key": None,
+                "android_url": "https://telegra.ph/Instrukciya-Android-11-09",
+                "windows_url": "https://telegra.ph/Instrukciya-Windows-11-09",
+                "ios_url": "https://telegra.ph/Instrukcii-ios-11-09",
+                "linux_url": "https://telegra.ph/Instrukciya-Linux-11-09",
             }
             run_migration()
             for key, value in default_settings.items():

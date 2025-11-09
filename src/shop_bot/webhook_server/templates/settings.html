@@ -444,6 +444,42 @@
 						>Требовать обязательную подписку на канал</label
 					>
 				</div>
+			    <div class="form-group">
+					<label for="android_url">URL "Инструкция Андроид":</label>
+					<input
+						type="url"
+						id="android_url"
+						name="android_url"
+						value="{{ settings.android_url or '' }}"
+					/>
+				</div>
+				<div class="form-group">
+					<label for="ios_url">URL "Инструкция ios":</label>
+					<input
+						type="url"
+						id="ios_url"
+						name="ios_url"
+						value="{{ settings.ios_url or '' }}"
+					/>
+				</div>
+				<div class="form-group">
+					<label for="windows_url">URL "Инструкция Windows":</label>
+					<input
+						type="url"
+						id="windows_url"
+						name="windows_url"
+						value="{{ settings.windows_url or '' }}"
+					/>
+				</div>
+				<div class="form-group">
+					<label for="linux_url">URL "Инструкция Linux":</label>
+					<input
+						type="url"
+						id="linux_url"
+						name="linux_url"
+						value="{{ settings.linux_url or '' }}"
+					/>
+				</div>
 			</section>
 
 			<button type="submit" class="button button-primary">

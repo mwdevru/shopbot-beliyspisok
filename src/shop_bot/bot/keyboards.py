@@ -154,22 +154,22 @@ def create_key_info_keyboard(key_id: int) -> InlineKeyboardMarkup:
     builder.adjust(1)
     return builder.as_markup()
 
-def create_howto_vless_keyboard() -> InlineKeyboardMarkup:
+def create_howto_vless_keyboard(android_url: str, linux_url: str, ios_url: str, windows_url: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text="📱 Android", callback_data="howto_android")
-    builder.button(text="📱 iOS", callback_data="howto_ios")
-    builder.button(text="💻 Windows", callback_data="howto_windows")
-    builder.button(text="🐧 Linux", callback_data="howto_linux")
+    builder.button(text="📱 Android", url=android_url)
+    builder.button(text="📱 iOS", url=ios_url)
+    builder.button(text="💻 Windows", url=windows_url)
+    builder.button(text="🐧 Linux", url=linux_url)
     builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
     builder.adjust(2, 2, 1)
     return builder.as_markup()
 
-def create_howto_vless_keyboard_key(key_id: int) -> InlineKeyboardMarkup:
+def create_howto_vless_keyboard_key(android_url: str, linux_url: str, ios_url: str, windows_url: str, key_id: int) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text="📱 Android", callback_data="howto_android")
-    builder.button(text="📱 iOS", callback_data="howto_ios")
-    builder.button(text="💻 Windows", callback_data="howto_windows")
-    builder.button(text="🐧 Linux", callback_data="howto_linux")
+    builder.button(text="📱 Android", url=android_url)
+    builder.button(text="📱 iOS", url=ios_url)
+    builder.button(text="💻 Windows", url=windows_url)
+    builder.button(text="🐧 Linux", url=linux_url)
     builder.button(text="⬅️ Назад к ключу", callback_data=f"show_key_{key_id}")
     builder.adjust(2, 2, 1)
     return builder.as_markup()

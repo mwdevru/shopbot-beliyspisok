@@ -27,6 +27,7 @@ _bot_controller = None
 
 ALL_SETTINGS_KEYS = [
     "panel_login", "panel_password", "about_text", "terms_url", "privacy_url",
+    "android_url", "ios_url", "windows_url", "linux_url",
     "support_user", "support_text", "channel_url", "telegram_bot_token",
     "telegram_bot_username", "admin_telegram_id", "yookassa_shop_id",
     "yookassa_secret_key", "sbp_enabled", "receipt_email", "cryptobot_token",
