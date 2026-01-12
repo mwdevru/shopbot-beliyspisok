@@ -1,3 +1,5 @@
+#!/bin/bash
+
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
@@ -19,19 +21,17 @@ read_input_yn() {
     echo
 }
 
-REPO_URL="https://github.com/evansvl/vless-shopbot.git"
-PROJECT_DIR="vless-shopbot"
+REPO_URL="https://github.com/mwshark/vpn-reseller-bot.git"
+PROJECT_DIR="vpn-reseller-bot"
 NGINX_CONF_FILE="/etc/nginx/sites-available/${PROJECT_DIR}.conf"
 
-echo -e "${GREEN}--- Запуск скрипта установки/обновления VLESS Shop Bot ---${NC}"
+echo -e "${GREEN}--- Запуск скрипта установки/обновления VPN Reseller Bot ---${NC}"
 
 if [ -f "$NGINX_CONF_FILE" ]; then
     echo -e "\n${CYAN}Обнаружена существующая конфигурация. Скрипт запущен в режиме обновления.${NC}"
 
     if [ ! -d "$PROJECT_DIR" ]; then
         echo -e "${RED}Ошибка: Конфигурация Nginx существует, но папка проекта '${PROJECT_DIR}' не найдена!${NC}"
-        echo -e "${YELLOW}Возможно, вы переместили или удалили папку. Для исправления удалите файл конфигурации Nginx и запустите установку заново:${NC}"
-        echo -e "sudo rm ${NGINX_CONF_FILE}"
         exit 1
     fi
 
@@ -47,7 +47,6 @@ if [ -f "$NGINX_CONF_FILE" ]; then
     echo -e "\n\n${GREEN}==============================================${NC}"
     echo -e "${GREEN}      🎉 Обновление успешно завершено! 🎉      ${NC}"
     echo -e "${GREEN}==============================================${NC}"
-    echo -e "\nБот был обновлен до последней версии и перезапущен."
 
     exit 0
 fi
@@ -74,7 +73,6 @@ install_package "certbot" "certbot python3-certbot-nginx"
 
 for service in docker nginx; do
     if ! sudo systemctl is-active --quiet $service; then
-        echo -e "${YELLOW}Сервис $service не запущен. Запускаем и добавляем в автозагрузку...${NC}"
         sudo systemctl start $service
         sudo systemctl enable $service
     fi
@@ -93,54 +91,38 @@ echo -e "\n${CYAN}Шаг 3: Настройка домена и получени�
 read_input "Введите ваш домен (например, my-vpn-shop.com): " USER_INPUT_DOMAIN
 
 if [ -z "$USER_INPUT_DOMAIN" ]; then
-    echo -e "${RED}Ошибка: Домен не может быть пустым. Установка прервана.${NC}"
+    echo -e "${RED}Ошибка: Домен не может быть пустым.${NC}"
     exit 1
 fi
 
 DOMAIN=$(echo "$USER_INPUT_DOMAIN" | sed -e 's%^https\?://%%' -e 's%/.*$%%')
 
-read_input "Введите ваш email (для регистрации SSL-сертификатов Let's Encrypt): " EMAIL
+read_input "Введите ваш email (для SSL-сертификатов Let's Encrypt): " EMAIL
 
-echo -e "${GREEN}✔ Домен для работы: ${DOMAIN}${NC}"
-SERVER_IP=$(curl -s ifconfig.me || hostname -I | awk '{print $1}')
-DOMAIN_IP=$(dig +short $DOMAIN @8.8.8.8 | tail -n1)
-echo -e "${YELLOW}IP вашего сервера: $SERVER_IP${NC}"
-echo -e "${YELLOW}IP, на который указывает домен '$DOMAIN': $DOMAIN_IP${NC}"
-
-if [ "$SERVER_IP" != "$DOMAIN_IP" ]; then
-    echo -e "${RED}ВНИМАНИЕ: DNS-запись для домена $DOMAIN не указывает на IP-адрес этого сервера!${NC}"
-    read_input_yn "Продолжить установку? (y/n): "
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then echo "Установка прервана."; exit 1; fi
-fi
+echo -e "${GREEN}✔ Домен: ${DOMAIN}${NC}"
 
 if command -v ufw &> /dev/null && sudo ufw status | grep -q 'Status: active'; then
-    echo -e "${YELLOW}Обнаружен активный файрвол (ufw). Открываем порты...${NC}"
     sudo ufw allow 80/tcp
     sudo ufw allow 443/tcp
     sudo ufw allow 1488/tcp
-    sudo ufw allow 8443/tcp
 fi
 
 if [ -d "/etc/letsencrypt/live/$DOMAIN" ]; then
-    echo -e "${GREEN}✔ SSL-сертификаты для домена $DOMAIN уже существуют.${NC}"
+    echo -e "${GREEN}✔ SSL-сертификаты уже существуют.${NC}"
 else
-    echo -e "${YELLOW}Получаем SSL-сертификаты для $DOMAIN...${NC}"
     sudo certbot --nginx -d $DOMAIN --email $EMAIL --agree-tos --non-interactive --redirect
-    echo -e "${GREEN}✔ SSL-сертификаты успешно получены.${NC}"
+    echo -e "${GREEN}✔ SSL-сертификаты получены.${NC}"
 fi
 
 echo -e "\n${CYAN}Шаг 4: Настройка Nginx...${NC}"
-read_input "Какой порт вы будете использовать для вебхуков YooKassa? (443 или 8443, рекомендуется 443): " YOOKASSA_PORT_INPUT
-YOOKASSA_PORT=${YOOKASSA_PORT_INPUT:-443}
 
 NGINX_ENABLED_FILE="/etc/nginx/sites-enabled/${PROJECT_DIR}.conf"
 
-echo -e "Создаем конфигурацию Nginx..."
 sudo rm -rf /etc/nginx/sites-enabled/default
 sudo bash -c "cat > $NGINX_CONF_FILE" <<EOF
 server {
-    listen ${YOOKASSA_PORT} ssl http2;
-    listen [::]:${YOOKASSA_PORT} ssl http2;
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
     server_name ${DOMAIN};
 
     ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
@@ -162,8 +144,6 @@ if [ ! -f "$NGINX_ENABLED_FILE" ]; then
     sudo ln -s $NGINX_CONF_FILE $NGINX_ENABLED_FILE
 fi
 
-echo -e "${GREEN}✔ Конфигурация Nginx создана.${NC}"
-echo -e "${YELLOW}Проверяем и перезагружаем Nginx...${NC}"
 sudo nginx -t && sudo systemctl reload nginx
 
 echo -e "\n${CYAN}Шаг 5: Сборка и запуск Docker-контейнера...${NC}"
@@ -173,17 +153,14 @@ fi
 sudo docker-compose up -d --build
 
 echo -e "\n\n${GREEN}=====================================================${NC}"
-echo -e "${GREEN}      🎉 Установка и запуск успешно завершены! 🎉      ${NC}"
+echo -e "${GREEN}      🎉 Установка успешно завершена! 🎉      ${NC}"
 echo -e "${GREEN}=====================================================${NC}"
-echo -e "\nВеб-панель доступна по адресу:"
-echo -e "  - ${YELLOW}https://${DOMAIN}:${YOOKASSA_PORT}/login${NC}"
-echo -e "\nДанные для первого входа:"
-echo -e "  - Логин:   ${CYAN}admin${NC}"
-echo -e "  - Пароль:  ${CYAN}admin${NC}"
-echo -e "\n${RED}ПЕРВЫЕ ШАГИ:${NC}"
-echo -e "1. Войдите в панель и ${RED}сразу же смените логин и пароль${NC}."
-echo -e "2. На странице 'Настройки' введите ваш Telegram токен, username бота и ваш Telegram ID."
-echo -e "3. Нажмите 'Сохранить' и затем 'Запустить Бота'."
-echo -e "\n${CYAN}Не забудьте указать URL для вебхуков в YooKassa:${NC}"
-echo -e "  - ${YELLOW}https://${DOMAIN}:${YOOKASSA_PORT}/yookassa-webhook${NC}"
+echo -e "\nВеб-панель: ${YELLOW}https://${DOMAIN}/login${NC}"
+echo -e "\nЛогин: ${CYAN}admin${NC}"
+echo -e "Пароль: ${CYAN}admin${NC}"
+echo -e "\n${RED}ВАЖНО:${NC}"
+echo -e "1. Смените пароль в настройках панели"
+echo -e "2. Получите API ключ на https://vpn.mwshark.host"
+echo -e "3. Введите API ключ, токен бота и Telegram ID в настройках"
+echo -e "4. Создайте тарифы и запустите бота"
 echo -e "\n"

@@ -74,21 +74,13 @@ def create_support_keyboard(support_user: str) -> InlineKeyboardMarkup:
     builder.adjust(1)
     return builder.as_markup()
 
-def create_host_selection_keyboard(hosts: list, action: str) -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    for host in hosts:
-        callback_data = f"select_host_{action}_{host['host_name']}"
-        builder.button(text=host['host_name'], callback_data=callback_data)
-    builder.button(text="⬅️ Назад", callback_data="manage_keys" if action == 'new' else "back_to_main_menu")
-    builder.adjust(1)
-    return builder.as_markup()
-
-def create_plans_keyboard(plans: list[dict], action: str, host_name: str, key_id: int = 0) -> InlineKeyboardMarkup:
+def create_plans_keyboard(plans: list[dict], action: str, key_id: int = 0) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     for plan in plans:
-        callback_data = f"buy_{host_name}_{plan['plan_id']}_{action}_{key_id}"
+        # Format: buy_{plan_id}_{action}_{key_id}
+        callback_data = f"buy_{plan['plan_id']}_{action}_{key_id}"
         builder.button(text=f"{plan['plan_name']} - {plan['price']:.0f} RUB", callback_data=callback_data)
-    back_callback = "manage_keys" if action == "extend" else "buy_new_key"
+    back_callback = "manage_keys" if action == "extend" else "back_to_main_menu"
     builder.button(text="⬅️ Назад", callback_data=back_callback)
     builder.adjust(1) 
     return builder.as_markup()
@@ -137,8 +129,7 @@ def create_keys_management_keyboard(keys: list) -> InlineKeyboardMarkup:
         for i, key in enumerate(keys):
             expiry_date = datetime.fromisoformat(key['expiry_date'])
             status_icon = "✅" if expiry_date > datetime.now() else "❌"
-            host_name = key.get('host_name', 'Неизвестный хост')
-            button_text = f"{status_icon} Ключ #{i+1} ({host_name}) (до {expiry_date.strftime('%d.%m.%Y')})"
+            button_text = f"{status_icon} Ключ #{i+1} (до {expiry_date.strftime('%d.%m.%Y')})"
             builder.button(text=button_text, callback_data=f"show_key_{key['key_id']}")
     builder.button(text="➕ Купить новый ключ", callback_data="buy_new_key")
     builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")

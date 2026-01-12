@@ -29,9 +29,7 @@ def initialize_db():
                 CREATE TABLE IF NOT EXISTS vpn_keys (
                     key_id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER NOT NULL,
-                    host_name TEXT NOT NULL,
-                    xui_client_uuid TEXT NOT NULL,
-                    key_email TEXT NOT NULL UNIQUE,
+                    subscription_link TEXT,
                     expiry_date TIMESTAMP,
                     created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
@@ -63,23 +61,13 @@ def initialize_db():
                     thread_id INTEGER NOT NULL
                 )
             ''')
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS xui_hosts(
-                    host_name TEXT NOT NULL,
-                    host_url TEXT NOT NULL,
-                    host_username TEXT NOT NULL,
-                    host_pass TEXT NOT NULL,
-                    host_inbound_id INTEGER NOT NULL
-                )
-            ''')
+            # xui_hosts table removed - using MWShark API instead
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS plans (
                     plan_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    host_name TEXT NOT NULL,
                     plan_name TEXT NOT NULL,
-                    months INTEGER NOT NULL,
-                    price REAL NOT NULL,
-                    FOREIGN KEY (host_name) REFERENCES xui_hosts (host_name)
+                    days INTEGER NOT NULL,
+                    price REAL NOT NULL
                 )
             ''')            
             default_settings = {
@@ -117,6 +105,7 @@ def initialize_db():
                 "windows_url": "https://telegra.ph/Instrukciya-Windows-11-09",
                 "ios_url": "https://telegra.ph/Instrukcii-ios-11-09",
                 "linux_url": "https://telegra.ph/Instrukciya-Linux-11-09",
+                "mwshark_api_key": None,
             }
             run_migration()
             for key, value in default_settings.items():
@@ -211,53 +200,53 @@ def create_new_transactions_table(cursor: sqlite3.Cursor):
         )
     ''')
 
-def create_host(name: str, url: str, user: str, passwd: str, inbound: int):
+def create_plan(plan_name: str, days: int, price: float):
     try:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "INSERT INTO xui_hosts (host_name, host_url, host_username, host_pass, host_inbound_id) VALUES (?, ?, ?, ?, ?)",
-                (name, url, user, passwd, inbound)
+                "INSERT INTO plans (plan_name, days, price) VALUES (?, ?, ?)",
+                (plan_name, days, price)
             )
             conn.commit()
-            logging.info(f"Successfully created a new host: {name}")
+            logging.info(f"Created new plan '{plan_name}'.")
     except sqlite3.Error as e:
-        logging.error(f"Error creating host '{name}': {e}")
+        logging.error(f"Failed to create plan: {e}")
 
-def delete_host(host_name: str):
+def delete_plan(plan_id: int):
     try:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
-            cursor.execute("DELETE FROM plans WHERE host_name = ?", (host_name,))
-            cursor.execute("DELETE FROM xui_hosts WHERE host_name = ?", (host_name,))
+            cursor.execute("DELETE FROM plans WHERE plan_id = ?", (plan_id,))
             conn.commit()
-            logging.info(f"Successfully deleted host '{host_name}' and its plans.")
+            logging.info(f"Deleted plan with id {plan_id}.")
     except sqlite3.Error as e:
-        logging.error(f"Error deleting host '{host_name}': {e}")
+        logging.error(f"Failed to delete plan with id {plan_id}: {e}")
 
-def get_host(host_name: str) -> dict | None:
+
+def get_all_plans() -> list[dict]:
     try:
         with sqlite3.connect(DB_FILE) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("SELECT * FROM xui_hosts WHERE host_name = ?", (host_name,))
-            result = cursor.fetchone()
-            return dict(result) if result else None
+            cursor.execute("SELECT * FROM plans ORDER BY days")
+            plans = cursor.fetchall()
+            return [dict(plan) for plan in plans]
     except sqlite3.Error as e:
-        logging.error(f"Error getting host '{host_name}': {e}")
-        return None
-
-def get_all_hosts() -> list[dict]:
-    try:
-        with sqlite3.connect(DB_FILE) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM xui_hosts")
-            hosts = cursor.fetchall()
-            return [dict(row) for row in hosts]
-    except sqlite3.Error as e:
-        logging.error(f"Error getting list of all hosts: {e}")
+        logging.error(f"Failed to get all plans: {e}")
         return []
+
+def get_plan_by_id(plan_id: int) -> dict | None:
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM plans WHERE plan_id = ?", (plan_id,))
+            plan = cursor.fetchone()
+            return dict(plan) if plan else None
+    except sqlite3.Error as e:
+        logging.error(f"Failed to get plan by id '{plan_id}': {e}")
+        return None
 
 def get_all_keys() -> list[dict]:
     try:
@@ -304,53 +293,6 @@ def update_setting(key: str, value: str):
             logging.info(f"Setting '{key}' updated.")
     except sqlite3.Error as e:
         logging.error(f"Failed to update setting '{key}': {e}")
-
-def create_plan(host_name: str, plan_name: str, months: int, price: float):
-    try:
-        with sqlite3.connect(DB_FILE) as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                "INSERT INTO plans (host_name, plan_name, months, price) VALUES (?, ?, ?, ?)",
-                (host_name, plan_name, months, price)
-            )
-            conn.commit()
-            logging.info(f"Created new plan '{plan_name}' for host '{host_name}'.")
-    except sqlite3.Error as e:
-        logging.error(f"Failed to create plan for host '{host_name}': {e}")
-
-def get_plans_for_host(host_name: str) -> list[dict]:
-    try:
-        with sqlite3.connect(DB_FILE) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM plans WHERE host_name = ? ORDER BY months", (host_name,))
-            plans = cursor.fetchall()
-            return [dict(plan) for plan in plans]
-    except sqlite3.Error as e:
-        logging.error(f"Failed to get plans for host '{host_name}': {e}")
-        return []
-
-def get_plan_by_id(plan_id: int) -> dict | None:
-    try:
-        with sqlite3.connect(DB_FILE) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM plans WHERE plan_id = ?", (plan_id,))
-            plan = cursor.fetchone()
-            return dict(plan) if plan else None
-    except sqlite3.Error as e:
-        logging.error(f"Failed to get plan by id '{plan_id}': {e}")
-        return None
-
-def delete_plan(plan_id: int):
-    try:
-        with sqlite3.connect(DB_FILE) as conn:
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM plans WHERE plan_id = ?", (plan_id,))
-            conn.commit()
-            logging.info(f"Deleted plan with id {plan_id}.")
-    except sqlite3.Error as e:
-        logging.error(f"Failed to delete plan with id {plan_id}: {e}")
 
 def register_user_if_not_exists(telegram_id: int, username: str, referrer_id):
     try:
@@ -577,14 +519,14 @@ def set_trial_used(telegram_id: int):
     except sqlite3.Error as e:
         logging.error(f"Failed to set trial used for user {telegram_id}: {e}")
 
-def add_new_key(user_id: int, host_name: str, xui_client_uuid: str, key_email: str, expiry_timestamp_ms: int):
+def add_new_key(user_id: int, subscription_link: str, expiry_timestamp_ms: int):
     try:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
             expiry_date = datetime.fromtimestamp(expiry_timestamp_ms / 1000)
             cursor.execute(
-                "INSERT INTO vpn_keys (user_id, host_name, xui_client_uuid, key_email, expiry_date) VALUES (?, ?, ?, ?, ?)",
-                (user_id, host_name, xui_client_uuid, key_email, expiry_date)
+                "INSERT INTO vpn_keys (user_id, subscription_link, expiry_date) VALUES (?, ?, ?)",
+                (user_id, subscription_link, expiry_date)
             )
             new_key_id = cursor.lastrowid
             conn.commit()
@@ -593,14 +535,14 @@ def add_new_key(user_id: int, host_name: str, xui_client_uuid: str, key_email: s
         logging.error(f"Failed to add new key for user {user_id}: {e}")
         return None
 
-def delete_key_by_email(email: str):
+def delete_key_by_id(key_id: int):
     try:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
-            cursor.execute("DELETE FROM vpn_keys WHERE key_email = ?", (email,))
+            cursor.execute("DELETE FROM vpn_keys WHERE key_id = ?", (key_id,))
             conn.commit()
     except sqlite3.Error as e:
-        logging.error(f"Failed to delete key '{email}': {e}")
+        logging.error(f"Failed to delete key '{key_id}': {e}")
 
 def get_user_keys(user_id: int):
     try:
@@ -626,24 +568,12 @@ def get_key_by_id(key_id: int):
         logging.error(f"Failed to get key by ID {key_id}: {e}")
         return None
 
-def get_key_by_email(key_email: str):
-    try:
-        with sqlite3.connect(DB_FILE) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM vpn_keys WHERE key_email = ?", (key_email,))
-            key_data = cursor.fetchone()
-            return dict(key_data) if key_data else None
-    except sqlite3.Error as e:
-        logging.error(f"Failed to get key by email {key_email}: {e}")
-        return None
-
-def update_key_info(key_id: int, new_xui_uuid: str, new_expiry_ms: int):
+def update_key_info(key_id: int, subscription_link: str, new_expiry_ms: int):
     try:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
             expiry_date = datetime.fromtimestamp(new_expiry_ms / 1000)
-            cursor.execute("UPDATE vpn_keys SET xui_client_uuid = ?, expiry_date = ? WHERE key_id = ?", (new_xui_uuid, expiry_date, key_id))
+            cursor.execute("UPDATE vpn_keys SET subscription_link = ?, expiry_date = ? WHERE key_id = ?", (subscription_link, expiry_date, key_id))
             conn.commit()
     except sqlite3.Error as e:
         logging.error(f"Failed to update key {key_id}: {e}")
@@ -651,18 +581,6 @@ def update_key_info(key_id: int, new_xui_uuid: str, new_expiry_ms: int):
 def get_next_key_number(user_id: int) -> int:
     keys = get_user_keys(user_id)
     return len(keys) + 1
-
-def get_keys_for_host(host_name: str) -> list[dict]:
-    try:
-        with sqlite3.connect(DB_FILE) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM vpn_keys WHERE host_name = ?", (host_name,))
-            keys = cursor.fetchall()
-            return [dict(key) for key in keys]
-    except sqlite3.Error as e:
-        logging.error(f"Failed to get keys for host '{host_name}': {e}")
-        return []
 
 def get_all_vpn_users():
     try:
@@ -675,19 +593,6 @@ def get_all_vpn_users():
     except sqlite3.Error as e:
         logging.error(f"Failed to get all vpn users: {e}")
         return []
-
-def update_key_status_from_server(key_email: str, xui_client_data):
-    try:
-        with sqlite3.connect(DB_FILE) as conn:
-            cursor = conn.cursor()
-            if xui_client_data:
-                expiry_date = datetime.fromtimestamp(xui_client_data.expiry_time / 1000)
-                cursor.execute("UPDATE vpn_keys SET xui_client_uuid = ?, expiry_date = ? WHERE key_email = ?", (xui_client_data.id, expiry_date, key_email))
-            else:
-                cursor.execute("DELETE FROM vpn_keys WHERE key_email = ?", (key_email,))
-            conn.commit()
-    except sqlite3.Error as e:
-        logging.error(f"Failed to update key status for {key_email}: {e}")
 
 def get_daily_stats_for_charts(days: int = 30) -> dict:
     stats = {'users': {}, 'keys': {}}

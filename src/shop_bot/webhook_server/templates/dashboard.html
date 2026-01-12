@@ -20,9 +20,15 @@ block content %}
 			</p>
 		</div>
 		<div class="stat-card">
-			<h3>Активных хостов</h3>
-			<p class="stat-number">{{ stats.host_count }}</p>
+			<h3>Тарифов</h3>
+			<p class="stat-number">{{ stats.plans_count }}</p>
 		</div>
+		{% if api_balance and api_balance.success %}
+		<div class="stat-card">
+			<h3>Баланс API</h3>
+			<p class="stat-number">{{ api_balance.balance | round(2) }} <small>RUB</small></p>
+		</div>
+		{% endif %}
 	</div>
 </section>
 
@@ -50,7 +56,6 @@ block content %}
 					<thead>
 						<tr>
 							<th>Пользователь</th>
-							<th>Хост</th>
 							<th>План</th>
 							<th>Цена</th>
 							<th>Дата</th>
@@ -62,7 +67,6 @@ block content %}
 							<td>
 								{{ tx.username or 'N/A' }}<br /><small>({{tx.user_id}})</small>
 							</td>
-							<td>{{ tx.host_name }}</td>
 							<td>{{ tx.plan_name }}</td>
 							<td>{{ tx.amount_rub | round(2) }} RUB</td>
 							<td>{{ tx.created_date.split(' ')[0] }}</td>
