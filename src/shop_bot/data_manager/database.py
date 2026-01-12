@@ -67,6 +67,7 @@ def initialize_db():
         "yookassa_secret_key": None, "sbp_enabled": "false", "cryptobot_token": None,
         "heleket_merchant_id": None, "heleket_api_key": None, "domain": None,
         "ton_wallet_address": None, "tonapi_key": None, "mwshark_api_key": None,
+        "platega_merchant_id": None, "platega_secret_key": None, "platega_payment_method": "2",
         "android_url": "https://telegra.ph/Instrukciya-Android-11-09",
         "windows_url": "https://telegra.ph/Instrukciya-Windows-11-09",
         "ios_url": "https://telegra.ph/Instrukcii-ios-11-09",
@@ -103,6 +104,7 @@ def get_all_settings() -> Dict[str, Any]:
 def update_setting(key: str, value: str):
     conn = get_sync_conn()
     conn.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES (?, ?)", (key, value))
+    conn.commit()
     conn.commit()
 
 def get_user(telegram_id: int) -> Optional[Dict]:
