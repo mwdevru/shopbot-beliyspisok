@@ -466,7 +466,35 @@ def create_webhook_app(bot_controller_instance):
         else:
             flash('Бот не запущен.', 'danger')
         
-        return redirect(url_for('users_page'))
+        return redirect(request.referrer or url_for('users_page'))
+
+    @flask_app.route('/users/<int:user_id>')
+    @login_required
+    def user_detail_page(user_id):
+        user = get_user(user_id)
+        if not user:
+            flash('Пользователь не найден.', 'danger')
+            return redirect(url_for('users_page'))
+        
+        user['user_keys'] = get_user_keys(user_id)
+        
+        api_subscription = None
+        api_key = get_setting("mwshark_api_key")
+        if api_key:
+            try:
+                loop = current_app.config.get('EVENT_LOOP')
+                if loop and loop.is_running():
+                    future = asyncio.run_coroutine_threadsafe(
+                        mwshark_api.get_user_subscription(api_key, user_id), loop
+                    )
+                    result = future.result(timeout=5)
+                    if result.get('success'):
+                        api_subscription = result.get('subscription')
+            except Exception as e:
+                logger.error(f"Get subscription error: {e}")
+        
+        plans = get_all_plans()
+        return render_template('user_detail.html', user=user, api_subscription=api_subscription, plans=plans, **get_common_template_data())
 
 
     @flask_app.route('/yookassa-webhook', methods=['POST'])

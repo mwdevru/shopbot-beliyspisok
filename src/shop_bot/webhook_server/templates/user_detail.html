@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}{{ user.username or user.telegram_id }}{% endblock %}
+{% block content %}
+<div style="margin-bottom:24px">
+<a href="{{ url_for('users_page') }}" style="color:var(--text-muted);font-size:.875rem">← Назад к списку</a>
+</div>
+<div class="grid-2">
+<div>
+<div class="card" style="margin-bottom:24px">
+<div style="display:flex;align-items:center;gap:16px;margin-bottom:20px">
+<div class="user-avatar" style="width:64px;height:64px;font-size:1.5rem">{{ user.username[0]|upper if user.username else 'U' }}</div>
+<div style="flex:1">
+<h2 style="margin:0;font-size:1.25rem">@{{ user.username or 'Без имени' }}</h2>
+<div style="font-family:monospace;color:var(--text-muted);font-size:.875rem">{{ user.telegram_id }}</div>
+</div>
+{% if user.is_banned %}
+<span class="badge badge-danger" style="font-size:.875rem;padding:8px 16px">Заблокирован</span>
+{% else %}
+<span class="badge badge-success" style="font-size:.875rem;padding:8px 16px">Активен</span>
+{% endif %}
+</div>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;padding:16px;background:var(--bg-input);border-radius:8px;margin-bottom:20px">
+<div style="text-align:center">
+<div style="font-size:1.5rem;font-weight:600">{{ user.user_keys|length }}</div>
+<div style="font-size:.75rem;color:var(--text-muted)">Ключей</div>
+</div>
+<div style="text-align:center">
+<div style="font-size:1.5rem;font-weight:600">{{ "%.0f"|format(user.total_spent or 0) }}₽</div>
+<div style="font-size:.75rem;color:var(--text-muted)">Потрачено</div>
+</div>
+<div style="text-align:center">
+<div style="font-size:1.5rem;font-weight:600">{{ user.total_months or 0 }}</div>
+<div style="font-size:.75rem;color:var(--text-muted)">Месяцев</div>
+</div>
+</div>
+<div style="font-size:.875rem;color:var(--text-muted);margin-bottom:20px">
+<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+<span>Регистрация</span>
+<span style="color:var(--text)">{{ user.registration_date[:10] if user.registration_date else '—' }}</span>
+</div>
+<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+<span>Триал использован</span>
+<span style="color:var(--text)">{{ 'Да' if user.trial_used else 'Нет' }}</span>
+</div>
+<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+<span>Реф. баланс</span>
+<span style="color:var(--text)">{{ "%.2f"|format(user.referral_balance or 0) }} ₽</span>
+</div>
+{% if user.referred_by %}
+<div style="display:flex;justify-content:space-between;padding:8px 0">
+<span>Приглашён</span>
+<span style="color:var(--text)">{{ user.referred_by }}</span>
+</div>
+{% endif %}
+</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap">
+{% if user.is_banned %}
+<form action="{{ url_for('unban_user_route', user_id=user.telegram_id) }}" method="post">
+<button type="submit" class="btn btn-success btn-sm">✓ Разблокировать</button>
+</form>
+{% else %}
+<form action="{{ url_for('ban_user_route', user_id=user.telegram_id) }}" method="post" data-confirm="Заблокировать пользователя?">
+<button type="submit" class="btn btn-warning btn-sm">⛔ Заблокировать</button>
+</form>
+{% endif %}
+{% if user.user_keys %}
+<form action="{{ url_for('revoke_keys_route', user_id=user.telegram_id) }}" method="post" data-confirm="Отозвать все ключи через API?">
+<button type="submit" class="btn btn-danger btn-sm">🗑 Отозвать все ключи</button>
+</form>
+{% endif %}
+</div>
+</div>
+<div class="card" style="margin-bottom:24px">
+<div class="card-title">💬 Отправить сообщение</div>
+<form action="{{ url_for('send_message_to_user', user_id=user.telegram_id) }}" method="post">
+<div class="form-group" style="margin-bottom:12px">
+<textarea name="message" class="form-input" rows="3" placeholder="Текст сообщения (HTML)" required></textarea>
+</div>
+<button type="submit" class="btn btn-primary btn-sm">Отправить</button>
+</form>
+</div>
+{% if api_subscription %}
+<div class="card">
+<div class="card-title">🌐 Данные MW API</div>
+<div style="font-size:.875rem">
+<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+<span style="color:var(--text-muted)">UUID</span>
+<code style="font-size:.75rem">{{ api_subscription.uuid[:20] }}...</code>
+</div>
+<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+<span style="color:var(--text-muted)">Email</span>
+<span>{{ api_subscription.email or '—' }}</span>
+</div>
+<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+<span style="color:var(--text-muted)">Истекает</span>
+<span>{{ api_subscription.expiry_date[:10] if api_subscription.expiry_date else '—' }}</span>
+</div>
+<div style="display:flex;justify-content:space-between;padding:8px 0">
+<span style="color:var(--text-muted)">Статус</span>
+{% if api_subscription.is_active %}<span class="badge badge-success">Активна</span>
+{% else %}<span class="badge badge-danger">Неактивна</span>{% endif %}
+</div>
+</div>
+</div>
+{% endif %}
+</div>
+<div>
+<div class="card" style="margin-bottom:24px">
+<div class="card-title">🎁 Выдать ключ</div>
+<form action="{{ url_for('grant_key_route', user_id=user.telegram_id) }}" method="post">
+<div class="form-group">
+<label class="form-label">Количество дней</label>
+<input type="number" name="days" class="form-input" value="30" min="1" max="365" required>
+</div>
+<button type="submit" class="btn btn-primary">Выдать ключ</button>
+</form>
+</div>
+{% if user.user_keys %}
+<div class="card" style="margin-bottom:24px">
+<div class="card-title">📅 Изменить срок</div>
+<form action="{{ url_for('modify_user_days_route', user_id=user.telegram_id) }}" method="post">
+<input type="hidden" name="key_id" value="{{ user.user_keys[0].key_id }}">
+<div class="form-group">
+<label class="form-label">Дней (+/-)</label>
+<input type="number" name="days" class="form-input" placeholder="+30 или -10" required>
+</div>
+<p style="font-size:.75rem;color:var(--text-muted);margin-bottom:12px">Положительное — добавить, отрицательное — отозвать</p>
+<button type="submit" class="btn btn-ghost">Применить</button>
+</form>
+</div>
+{% endif %}
+<div class="card">
+<div class="card-title">🔑 Ключи пользователя</div>
+{% if user.user_keys %}
+<div style="display:flex;flex-direction:column;gap:12px">
+{% for key in user.user_keys %}
+{% set is_active = key.expiry_date > now %}
+<div class="key-card {% if is_active %}key-active{% else %}key-expired{% endif %}">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+<span style="font-weight:500">Ключ #{{ key.key_id }}</span>
+{% if is_active %}<span class="badge badge-success">Активен</span>
+{% else %}<span class="badge badge-danger">Истёк</span>{% endif %}
+</div>
+<div style="font-size:.8rem;color:var(--text-muted)">
+<div>Создан: {{ key.created_date[:10] if key.created_date else '—' }}</div>
+<div>Истекает: {{ key.expiry_date[:10] if key.expiry_date else '—' }}</div>
+</div>
+{% if key.subscription_link %}
+<details style="margin-top:8px">
+<summary style="cursor:pointer;font-size:.75rem;color:var(--primary)">Показать ссылку</summary>
+<code style="font-size:.7rem;word-break:break-all;display:block;margin-top:8px;padding:8px;background:var(--bg);border-radius:4px">{{ key.subscription_link }}</code>
+</details>
+{% endif %}
+</div>
+{% endfor %}
+</div>
+{% else %}
+<p style="color:var(--text-muted);text-align:center;padding:20px">Нет ключей</p>
+{% endif %}
+</div>
+</div>
+</div>
+{% endblock %}

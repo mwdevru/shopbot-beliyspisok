@@ -3,114 +3,74 @@
 {% block content %}
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:16px">
 <h1 class="page-title" style="margin:0">Пользователи</h1>
-<a href="{{ url_for('export_users') }}" class="btn btn-ghost btn-sm">📥 Экспорт CSV</a>
+<a href="{{ url_for('export_users') }}" class="btn btn-ghost btn-sm">📥 CSV</a>
 </div>
 <div class="stats-grid" style="margin-bottom:24px">
-<div class="stat-card">
-<div class="stat-label">Всего</div>
-<div class="stat-value">{{ stats.total }}</div>
+<div class="stat-card"><div class="stat-label">Всего</div><div class="stat-value">{{ stats.total }}</div></div>
+<div class="stat-card"><div class="stat-label">С ключами</div><div class="stat-value">{{ stats.with_keys }}</div></div>
+<div class="stat-card"><div class="stat-label">Активных</div><div class="stat-value">{{ stats.active_keys }}</div></div>
+<div class="stat-card"><div class="stat-label">Истекших</div><div class="stat-value">{{ stats.expired_keys }}</div></div>
+<div class="stat-card"><div class="stat-label">Бан</div><div class="stat-value">{{ stats.banned }}</div></div>
 </div>
-<div class="stat-card">
-<div class="stat-label">С ключами</div>
-<div class="stat-value">{{ stats.with_keys }}</div>
-</div>
-<div class="stat-card">
-<div class="stat-label">Активных ключей</div>
-<div class="stat-value">{{ stats.active_keys }}</div>
-</div>
-<div class="stat-card">
-<div class="stat-label">Истекших</div>
-<div class="stat-value">{{ stats.expired_keys }}</div>
-</div>
-<div class="stat-card">
-<div class="stat-label">Забанено</div>
-<div class="stat-value">{{ stats.banned }}</div>
-</div>
-</div>
-<div class="card" style="margin-bottom:24px">
-<form method="get" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
-<div class="form-group" style="margin:0;flex:1;min-width:200px">
-<label class="form-label">Поиск</label>
-<input type="text" name="search" class="form-input" placeholder="ID или username" value="{{ search }}">
-</div>
-<div class="form-group" style="margin:0">
-<label class="form-label">Фильтр</label>
+<div class="card" style="margin-bottom:24px;padding:16px">
+<form method="get" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+<input type="text" name="search" class="form-input" placeholder="ID или @username" value="{{ search }}" style="flex:1;min-width:180px">
 <select name="filter" class="form-input" style="width:auto">
 <option value="all" {% if filter_type == 'all' %}selected{% endif %}>Все</option>
-<option value="active" {% if filter_type == 'active' %}selected{% endif %}>С активными ключами</option>
+<option value="active" {% if filter_type == 'active' %}selected{% endif %}>С ключами</option>
 <option value="nokeys" {% if filter_type == 'nokeys' %}selected{% endif %}>Без ключей</option>
 </select>
-</div>
-<button type="submit" class="btn btn-primary">Найти</button>
-{% if search or filter_type != 'all' %}
-<a href="{{ url_for('users_page') }}" class="btn btn-ghost">Сбросить</a>
-{% endif %}
+<button type="submit" class="btn btn-primary btn-sm">Найти</button>
+{% if search or filter_type != 'all' %}<a href="{{ url_for('users_page') }}" class="btn btn-ghost btn-sm">×</a>{% endif %}
 </form>
 </div>
-<div class="users-grid">
+<div class="card">
+{% if users %}
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th style="width:50px"></th>
+<th>Пользователь</th>
+<th>Ключей</th>
+<th>Потрачено</th>
+<th>Статус</th>
+<th>Регистрация</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
 {% for user in users %}
-<div class="user-card {% if user.is_banned %}banned{% endif %}">
-<div class="user-head">
-<div class="user-avatar">{{ user.username[0]|upper if user.username else 'U' }}</div>
-<div class="user-meta">
-<div class="user-name">@{{ user.username or 'Без имени' }}</div>
-<div class="user-id">{{ user.telegram_id }}</div>
-</div>
-{% if user.is_banned %}
-<span class="badge badge-danger">Бан</span>
-{% else %}
-<span class="badge badge-success">Актив</span>
-{% endif %}
-</div>
-<div class="user-stats">
-<div class="user-stat">🔑 {{ user.user_keys|length }}</div>
-<div class="user-stat">💰 {{ "%.0f"|format(user.total_spent or 0) }}₽</div>
-<div class="user-stat">📅 {{ user.total_months or 0 }} мес</div>
-</div>
+<tr class="clickable-row" data-href="{{ url_for('user_detail_page', user_id=user.telegram_id) }}">
+<td><div class="user-avatar" style="width:36px;height:36px;font-size:.9rem">{{ user.username[0]|upper if user.username else 'U' }}</div></td>
+<td>
+<div style="font-weight:500">@{{ user.username or 'Без имени' }}</div>
+<div style="font-size:.75rem;color:var(--text-muted);font-family:monospace">{{ user.telegram_id }}</div>
+</td>
+<td>
+{% set active = user.user_keys|selectattr('expiry_date', '>', now)|list|length %}
 {% if user.user_keys %}
-<div class="user-keys">
-{% for key in user.user_keys %}
-<span class="key-tag">{{ '✓' if key.expiry_date > now else '✗' }} {{ key.expiry_date[:10] }}</span>
-{% endfor %}
-</div>
-{% endif %}
-<div class="user-actions">
-{% if user.is_banned %}
-<form action="{{ url_for('unban_user_route', user_id=user.telegram_id) }}" method="post">
-<button type="submit" class="btn btn-success btn-xs">Разбан</button>
-</form>
+<span style="color:var(--success)">{{ active }}</span> / {{ user.user_keys|length }}
 {% else %}
-<form action="{{ url_for('ban_user_route', user_id=user.telegram_id) }}" method="post" data-confirm="Забанить?">
-<button type="submit" class="btn btn-warning btn-xs">Бан</button>
-</form>
+<span style="color:var(--text-muted)">—</span>
 {% endif %}
-<form action="{{ url_for('grant_key_route', user_id=user.telegram_id) }}" method="post" class="inline-form">
-<input type="number" name="days" value="30" min="1" max="365" class="input-mini">
-<button type="submit" class="btn btn-primary btn-xs">Выдать</button>
-</form>
-{% if user.user_keys %}
-<form action="{{ url_for('modify_user_days_route', user_id=user.telegram_id) }}" method="post" class="inline-form">
-<input type="hidden" name="key_id" value="{{ user.user_keys[0].key_id }}">
-<input type="number" name="days" placeholder="+/-" class="input-mini">
-<button type="submit" class="btn btn-ghost btn-xs">±Дни</button>
-</form>
-<form action="{{ url_for('revoke_keys_route', user_id=user.telegram_id) }}" method="post" data-confirm="Отозвать ключи?">
-<button type="submit" class="btn btn-danger btn-xs">Отозвать</button>
-</form>
-{% endif %}
-</div>
-<details style="margin-top:12px">
-<summary style="cursor:pointer;font-size:.8rem;color:var(--text-muted)">💬 Отправить сообщение</summary>
-<form action="{{ url_for('send_message_to_user', user_id=user.telegram_id) }}" method="post" style="margin-top:8px">
-<div style="display:flex;gap:8px">
-<input type="text" name="message" class="form-input" placeholder="Текст сообщения" style="flex:1;padding:6px 10px;font-size:.8rem">
-<button type="submit" class="btn btn-primary btn-xs">📤</button>
-</div>
-</form>
-</details>
+</td>
+<td>{{ "%.0f"|format(user.total_spent or 0) }} ₽</td>
+<td>
+{% if user.is_banned %}<span class="badge badge-danger">Бан</span>
+{% else %}<span class="badge badge-success">Актив</span>{% endif %}
+</td>
+<td style="font-size:.8rem;color:var(--text-muted)">{{ user.registration_date[:10] if user.registration_date else '—' }}</td>
+<td style="text-align:right">
+<a href="{{ url_for('user_detail_page', user_id=user.telegram_id) }}" class="btn btn-ghost btn-xs" onclick="event.stopPropagation()">→</a>
+</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
 </div>
 {% else %}
-<div class="card"><p style="color:var(--text-muted)">Пользователи не найдены</p></div>
-{% endfor %}
+<p style="color:var(--text-muted);padding:20px;text-align:center">Пользователи не найдены</p>
+{% endif %}
 </div>
 {% endblock %}

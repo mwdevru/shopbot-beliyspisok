@@ -66,6 +66,10 @@ textarea.form-input{resize:vertical;min-height:80px}
 table{width:100%;border-collapse:collapse}
 th,td{padding:12px;text-align:left;border-bottom:1px solid var(--border);font-size:.875rem}
 th{font-weight:600;color:var(--text-muted);text-transform:uppercase;font-size:.75rem;letter-spacing:.5px}
+.key-card{padding:16px;background:var(--bg-input);border-radius:8px;border-left:3px solid var(--text-muted)}
+.key-card.key-active{border-left-color:var(--success)}
+.key-card.key-expired{border-left-color:var(--danger)}
+.clickable-row{cursor:pointer}
 .badge{display:inline-flex;align-items:center;padding:4px 10px;border-radius:20px;font-size:.75rem;font-weight:500}
 .badge-success{background:rgba(34,197,94,.15);color:var(--success)}
 .badge-danger{background:rgba(239,68,68,.15);color:var(--danger)}

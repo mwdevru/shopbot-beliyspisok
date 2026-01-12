@@ -51,4 +51,9 @@ new Chart(usersCanvas.getContext('2d'),{type:'line',data:prepareData(CHART_DATA.
 const keysCanvas=document.getElementById('newKeysChart');
 if(keysCanvas){new Chart(keysCanvas.getContext('2d'),{type:'line',data:prepareData(CHART_DATA.keys,'#22c55e'),options:chartOpts});}
 }
+document.querySelectorAll('.clickable-row').forEach(row=>{
+row.addEventListener('click',function(e){
+if(e.target.tagName!=='A'&&e.target.tagName!=='BUTTON'){window.location=this.dataset.href;}
+});
+});
 });
