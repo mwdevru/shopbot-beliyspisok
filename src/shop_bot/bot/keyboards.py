@@ -112,21 +112,21 @@ def create_payment_method_keyboard(action: str, key_id: int) -> InlineKeyboardMa
 
     platega_merchant_id = get_setting("platega_merchant_id") or ""
     platega_secret_key = get_setting("platega_secret_key") or ""
-    if len(platega_merchant_id) > 5 and len(platega_secret_key) > 5:
+    if platega_merchant_id and platega_secret_key:
         builder.button(text="💳 Platega (Карта/СБП)", callback_data="pay_platega")
 
     cryptobot_token = get_setting("cryptobot_token") or ""
-    if len(cryptobot_token) > 10:
+    if cryptobot_token:
         builder.button(text="🤖 CryptoBot", callback_data="pay_cryptobot")
 
     heleket_merchant_id = get_setting("heleket_merchant_id") or ""
     heleket_api_key = get_setting("heleket_api_key") or ""
-    if len(heleket_merchant_id) > 5 and len(heleket_api_key) > 5:
+    if heleket_merchant_id and heleket_api_key:
         builder.button(text="💎 Heleket (Крипто)", callback_data="pay_heleket")
 
     ton_wallet = get_setting("ton_wallet_address") or ""
     tonapi_key = get_setting("tonapi_key") or ""
-    if len(ton_wallet) > 10 and len(tonapi_key) > 10:
+    if ton_wallet and tonapi_key:
         builder.button(text="🪙 TON Connect", callback_data="pay_tonconnect")
 
     builder.button(text="⬅️ Назад", callback_data="back_to_email_prompt")
