@@ -44,19 +44,25 @@ class MWSharkAPI:
     async def calculate_price(self, days: int) -> Dict[str, Any]:
         return await self._request("GET", f"/calculate?days={days}")
 
-    async def create_subscription(self, user_id: int, days: int = 30, name: str = None) -> Dict[str, Any]:
-        data = {"user_id": user_id, "days": days}
+    async def create_subscription(self, user_id: int, days: int = 30, devices: int = 1, name: str = None) -> Dict[str, Any]:
+        data = {"user_id": user_id, "days": days, "devices": devices}
         if name:
             data["name"] = name
         return await self._request("POST", "/subscription/create", data)
 
-    async def extend_subscription(self, user_id: int, days: int) -> Dict[str, Any]:
+    async def extend_subscription(self, user_id: int, days: int, devices: int = None) -> Dict[str, Any]:
         data = {"user_id": user_id, "days": days}
+        if devices:
+            data["devices"] = devices
         return await self._request("POST", "/subscription/extend", data)
 
     async def revoke_subscription(self, user_id: int) -> Dict[str, Any]:
         data = {"user_id": user_id}
         return await self._request("POST", "/subscription/revoke", data)
+
+    async def change_devices(self, uuid: str, devices: int) -> Dict[str, Any]:
+        data = {"uuid": uuid, "devices": devices}
+        return await self._request("POST", "/subscription/devices", data)
 
     async def get_grants(self, user_id: int = None) -> Dict[str, Any]:
         endpoint = f"/grants?user_id={user_id}" if user_id else "/grants"
@@ -79,17 +85,19 @@ def get_api(api_key: str = None) -> Optional[MWSharkAPI]:
     return _api_instance
 
 
-async def create_subscription_for_user(api_key: str, user_id: int, days: int, name: str = None) -> Dict[str, Any]:
+async def create_subscription_for_user(api_key: str, user_id: int, days: int, name: str = None, devices: int = 1) -> Dict[str, Any]:
     api = MWSharkAPI(api_key)
-    data = {"user_id": user_id, "days": days}
+    data = {"user_id": user_id, "days": days, "devices": devices}
     if name:
         data["name"] = name
     return await api._request("POST", "/subscription/create", data)
 
 
-async def extend_subscription_for_user(api_key: str, user_id: int, days: int) -> Dict[str, Any]:
+async def extend_subscription_for_user(api_key: str, user_id: int, days: int, devices: int = None) -> Dict[str, Any]:
     api = MWSharkAPI(api_key)
     data = {"user_id": user_id, "days": days}
+    if devices:
+        data["devices"] = devices
     return await api._request("POST", "/subscription/extend", data)
 
 
@@ -97,6 +105,12 @@ async def revoke_subscription_for_user(api_key: str, user_id: int) -> Dict[str, 
     api = MWSharkAPI(api_key)
     data = {"user_id": user_id}
     return await api._request("POST", "/subscription/revoke", data)
+
+
+async def change_subscription_devices(api_key: str, uuid: str, devices: int) -> Dict[str, Any]:
+    api = MWSharkAPI(api_key)
+    data = {"uuid": uuid, "devices": devices}
+    return await api._request("POST", "/subscription/devices", data)
 
 
 async def get_user_grants(api_key: str, user_id: int = None) -> Dict[str, Any]:

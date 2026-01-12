@@ -592,7 +592,16 @@ def get_user_router() -> Router:
     @user_router.callback_query(F.data.startswith("show_key_"))
     @registration_required
     async def show_key_handler(callback: types.CallbackQuery):
-        key_id = int(callback.data.split("_")[2])
+        try:
+            key_id_str = callback.data.split("_")[2]
+            if key_id_str == "None" or not key_id_str:
+                await callback.answer("❌ Ключ не найден.", show_alert=True)
+                return
+            key_id = int(key_id_str)
+        except (IndexError, ValueError):
+            await callback.answer("❌ Неверный формат ключа.", show_alert=True)
+            return
+            
         user_id = callback.from_user.id
         key_data = get_key_by_id(key_id)
 
@@ -618,8 +627,17 @@ def get_user_router() -> Router:
     @user_router.callback_query(F.data.startswith("show_qr_"))
     @registration_required
     async def show_qr_handler(callback: types.CallbackQuery):
+        try:
+            key_id_str = callback.data.split("_")[2]
+            if key_id_str == "None" or not key_id_str:
+                await callback.answer("❌ Ключ не найден.", show_alert=True)
+                return
+            key_id = int(key_id_str)
+        except (IndexError, ValueError):
+            await callback.answer("❌ Неверный формат ключа.", show_alert=True)
+            return
+            
         await callback.answer("Генерирую QR-код...")
-        key_id = int(callback.data.split("_")[2])
         key_data = get_key_by_id(key_id)
 
         if not key_data or key_data['user_id'] != callback.from_user.id:
@@ -644,7 +662,15 @@ def get_user_router() -> Router:
     @registration_required
     async def show_instruction_key_handler(callback: types.CallbackQuery):
         await callback.answer()
-        key_id = int(callback.data.split("_")[2])
+        try:
+            key_id_str = callback.data.split("_")[2]
+            if key_id_str == "None" or not key_id_str:
+                key_id = None
+            else:
+                key_id = int(key_id_str)
+        except (IndexError, ValueError):
+            key_id = None
+            
         await callback.message.edit_text(
             "Выберите платформу:",
             reply_markup=keyboards.create_howto_vless_keyboard_key(

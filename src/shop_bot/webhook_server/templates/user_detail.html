@@ -137,7 +137,7 @@
 {% set is_active = key.expiry_date > now %}
 <div class="key-card {% if is_active %}key-active{% else %}key-expired{% endif %}">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-<span style="font-weight:500">Ключ #{{ key.key_id }}</span>
+<span style="font-weight:500">Ключ #{{ key.key_id if key.key_id else loop.index }}</span>
 {% if is_active %}<span class="badge badge-success">Активен</span>
 {% else %}<span class="badge badge-danger">Истёк</span>{% endif %}
 </div>

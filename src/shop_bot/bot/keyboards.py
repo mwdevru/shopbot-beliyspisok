@@ -153,7 +153,11 @@ def create_keys_management_keyboard(keys: list) -> InlineKeyboardMarkup:
             expiry_date = datetime.fromisoformat(key['expiry_date'])
             status_icon = "✅" if expiry_date > datetime.now() else "❌"
             button_text = f"{status_icon} Ключ #{i+1} (до {expiry_date.strftime('%d.%m.%Y')})"
-            builder.button(text=button_text, callback_data=f"show_key_{key['key_id']}")
+            key_id = key.get('key_id')
+            if key_id:
+                builder.button(text=button_text, callback_data=f"show_key_{key_id}")
+            else:
+                builder.button(text=f"{button_text} ⚠️", callback_data="manage_keys")
     builder.button(text="➕ Купить новый ключ", callback_data="buy_new_key")
     builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
     builder.adjust(1)
@@ -162,9 +166,10 @@ def create_keys_management_keyboard(keys: list) -> InlineKeyboardMarkup:
 
 def create_key_info_keyboard(key_id: int) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text="➕ Продлить этот ключ", callback_data=f"extend_key_{key_id}")
-    builder.button(text="📱 Показать QR-код", callback_data=f"show_qr_{key_id}")
-    builder.button(text="📖 Инструкция", callback_data=f"howto_vless_{key_id}")
+    if key_id:
+        builder.button(text="➕ Продлить этот ключ", callback_data=f"extend_key_{key_id}")
+        builder.button(text="📱 Показать QR-код", callback_data=f"show_qr_{key_id}")
+        builder.button(text="📖 Инструкция", callback_data=f"howto_vless_{key_id}")
     builder.button(text="⬅️ Назад к списку ключей", callback_data="manage_keys")
     builder.adjust(1)
     return builder.as_markup()
@@ -187,7 +192,10 @@ def create_howto_vless_keyboard_key(android_url: str, linux_url: str, ios_url: s
     builder.button(text="📱 iOS", url=ios_url)
     builder.button(text="💻 Windows", url=windows_url)
     builder.button(text="🐧 Linux", url=linux_url)
-    builder.button(text="⬅️ Назад к ключу", callback_data=f"show_key_{key_id}")
+    if key_id:
+        builder.button(text="⬅️ Назад к ключу", callback_data=f"show_key_{key_id}")
+    else:
+        builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
     builder.adjust(2, 2, 1)
     return builder.as_markup()
 
