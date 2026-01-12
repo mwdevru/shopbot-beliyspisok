@@ -73,7 +73,18 @@
                 </form>
                 {% endif %}
 
+                <form action="{{ url_for('grant_key_route', user_id=user.telegram_id) }}" method="post" class="inline-form">
+                    <input type="number" name="days" value="30" min="1" max="365" class="input-mini">
+                    <button type="submit" class="btn btn-primary btn-sm">🎁 Выдать</button>
+                </form>
+
                 {% if user.user_keys %}
+                <form action="{{ url_for('modify_user_days_route', user_id=user.telegram_id) }}" method="post" class="inline-form">
+                    <input type="hidden" name="key_id" value="{{ user.user_keys[0].key_id }}">
+                    <input type="number" name="days" placeholder="+/-" class="input-mini">
+                    <button type="submit" class="btn btn-secondary btn-sm">📅 Дни</button>
+                </form>
+
                 <form action="{{ url_for('revoke_keys_route', user_id=user.telegram_id) }}" method="post" data-confirm="Отозвать все ключи?">
                     <button type="submit" class="btn btn-danger btn-sm">🗑 Отозвать</button>
                 </form>
