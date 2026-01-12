@@ -416,7 +416,7 @@ def get_user_router() -> Router:
 
         referral_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
         referral_count = get_referral_count(user_id)
-        balance = user_data.get('referral_balance', 0)
+        balance = float(user_data.get('referral_balance', 0) or 0)
 
         text = (
             "🤝 <b>Реферальная программа</b>\n\n"
@@ -446,7 +446,7 @@ def get_user_router() -> Router:
     async def process_withdraw_details(message: types.Message, state: FSMContext):
         user_id = message.from_user.id
         user = get_user(user_id)
-        balance = user.get('referral_balance', 0)
+        balance = float(user.get('referral_balance', 0) or 0)
         details = message.text.strip()
 
         if balance < 100:
@@ -474,7 +474,7 @@ def get_user_router() -> Router:
         try:
             user_id = int(message.text.split("_")[-1])
             user = get_user(user_id)
-            balance = user.get('referral_balance', 0)
+            balance = float(user.get('referral_balance', 0) or 0)
             if balance < 100:
                 await message.answer("Баланс менее 100 руб.")
                 return
