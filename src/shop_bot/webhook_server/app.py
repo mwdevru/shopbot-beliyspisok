@@ -2,13 +2,13 @@ import os
 import logging
 import asyncio
 import json
-import hashlib
+import hashlib  
 import base64
 from hmac import compare_digest
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 from math import ceil
-from flask import Flask, request, render_template, redirect, url_for, flash, session, current_app
+from flask import Flask, request, render_template, redirect, url_for, flash, session, current_app, jsonify
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -20,7 +20,8 @@ from shop_bot.data_manager.database import (
     create_plan, delete_plan, get_plan_by_id, get_user_count,
     get_total_keys_count, get_total_spent_sum, get_daily_stats_for_charts,
     get_recent_transactions, get_paginated_transactions, get_all_users, get_user_keys,
-    ban_user, unban_user, delete_user_keys, get_setting, find_and_complete_ton_transaction
+    ban_user, unban_user, delete_user_keys, get_setting, find_and_complete_ton_transaction,
+    get_user, update_key_expiry_days, set_key_expiry_date, get_key_by_id, add_new_key
 )
 
 _bot_controller = None
@@ -46,8 +47,8 @@ def create_webhook_app(bot_controller_instance):
     flask_app.config['SECRET_KEY'] = 'lolkek4eburek'
 
     @flask_app.context_processor
-    def inject_current_year():
-        return {'current_year': datetime.utcnow().year}
+    def inject_globals():
+        return {'current_year': datetime.utcnow().year, 'now': datetime.now().isoformat()}
 
     def login_required(f):
         @wraps(f)
@@ -120,6 +121,7 @@ def create_webhook_app(bot_controller_instance):
             'dashboard.html', stats=stats, chart_data=chart_data, transactions=transactions,
             current_page=page, total_pages=total_pages, api_balance=api_balance, **common_data
         )
+
 
     @flask_app.route('/users')
     @login_required
@@ -198,6 +200,87 @@ def create_webhook_app(bot_controller_instance):
     def revoke_keys_route(user_id):
         delete_user_keys(user_id)
         flash(f"Ключи пользователя {user_id} удалены.", 'success')
+        return redirect(url_for('users_page'))
+
+
+    @flask_app.route('/users/modify-days/<int:user_id>', methods=['POST'])
+    @login_required
+    def modify_user_days_route(user_id):
+        days = request.form.get('days', type=int)
+        key_id = request.form.get('key_id', type=int)
+        
+        if not days:
+            flash('Укажите количество дней.', 'danger')
+            return redirect(url_for('users_page'))
+        
+        api_key = get_setting("mwshark_api_key")
+        if not api_key:
+            flash('API ключ не настроен.', 'danger')
+            return redirect(url_for('users_page'))
+        
+        try:
+            loop = current_app.config.get('EVENT_LOOP')
+            if loop and loop.is_running():
+                if days > 0:
+                    future = asyncio.run_coroutine_threadsafe(
+                        mwshark_api.extend_subscription_for_user(api_key, user_id, days), loop
+                    )
+                    result = future.result(timeout=10)
+                    if result.get('success'):
+                        if key_id:
+                            update_key_expiry_days(key_id, days)
+                        flash(f'Добавлено {days} дней пользователю {user_id}.', 'success')
+                    else:
+                        flash(f"Ошибка API: {result.get('error', 'Неизвестная ошибка')}", 'danger')
+                else:
+                    future = asyncio.run_coroutine_threadsafe(
+                        mwshark_api.revoke_subscription_for_user(api_key, user_id), loop
+                    )
+                    result = future.result(timeout=10)
+                    if result.get('success'):
+                        delete_user_keys(user_id)
+                        flash(f'Подписка пользователя {user_id} отозвана.', 'success')
+                    else:
+                        flash(f"Ошибка API: {result.get('error', 'Неизвестная ошибка')}", 'danger')
+        except Exception as e:
+            logger.error(f"Modify days error: {e}")
+            flash(f'Ошибка: {e}', 'danger')
+        
+        return redirect(url_for('users_page'))
+
+    @flask_app.route('/users/grant-key/<int:user_id>', methods=['POST'])
+    @login_required
+    def grant_key_route(user_id):
+        days = request.form.get('days', type=int, default=30)
+        
+        api_key = get_setting("mwshark_api_key")
+        if not api_key:
+            flash('API ключ не настроен.', 'danger')
+            return redirect(url_for('users_page'))
+        
+        try:
+            loop = current_app.config.get('EVENT_LOOP')
+            if loop and loop.is_running():
+                future = asyncio.run_coroutine_threadsafe(
+                    mwshark_api.create_subscription_for_user(api_key, user_id, days, f"Admin grant for {user_id}"), loop
+                )
+                result = future.result(timeout=10)
+                
+                if result.get('success'):
+                    subscription = result.get('subscription', {})
+                    expiry_str = subscription.get('expiry_date', '')
+                    expiry_date = datetime.fromisoformat(expiry_str.replace('+00:00', ''))
+                    expiry_ms = int(expiry_date.timestamp() * 1000)
+                    subscription_link = subscription.get('link', '')
+                    
+                    add_new_key(user_id, subscription_link, expiry_ms)
+                    flash(f'Ключ на {days} дней выдан пользователю {user_id}.', 'success')
+                else:
+                    flash(f"Ошибка API: {result.get('error', 'Неизвестная ошибка')}", 'danger')
+        except Exception as e:
+            logger.error(f"Grant key error: {e}")
+            flash(f'Ошибка: {e}', 'danger')
+        
         return redirect(url_for('users_page'))
 
     @flask_app.route('/add-plan', methods=['POST'])
