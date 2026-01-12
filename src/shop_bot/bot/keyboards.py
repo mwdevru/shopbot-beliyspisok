@@ -112,7 +112,7 @@ def create_payment_method_keyboard(action: str, key_id: int) -> InlineKeyboardMa
 
     platega_merchant_id = get_setting("platega_merchant_id") or ""
     platega_secret_key = get_setting("platega_secret_key") or ""
-    if len(platega_merchant_id) > 10 and len(platega_secret_key) > 10:
+    if len(platega_merchant_id) > 5 and len(platega_secret_key) > 5:
         builder.button(text="💳 Platega (Карта/СБП)", callback_data="pay_platega")
 
     cryptobot_token = get_setting("cryptobot_token") or ""
