@@ -154,21 +154,24 @@ def migrate_from_old_db():
 
 
 def get_setting(key: str) -> Optional[str]:
-    cursor = get_sync_conn().cursor()
+    conn = get_sync_conn()
+    cursor = conn.cursor()
     cursor.execute("SELECT value FROM bot_settings WHERE key = ?", (key,))
     result = cursor.fetchone()
     if result is None:
         return None
-    val = result[0]
-    return val if val else None
+    return result[0] or None
 
 
 def get_all_settings() -> Dict[str, Any]:
-    cursor = get_sync_conn().cursor()
+    conn = get_sync_conn()
+    conn.execute("BEGIN")
+    cursor = conn.cursor()
     cursor.execute("SELECT key, value FROM bot_settings")
     result = {}
     for row in cursor.fetchall():
         result[row['key']] = row['value'] or ''
+    conn.execute("COMMIT")
     return result
 
 
