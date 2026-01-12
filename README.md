@@ -1,192 +1,113 @@
-<div align="center">
-
 # VPN Reseller Bot
 
-### Telegram-бот для реселлинга VPN подписок
+Telegram-бот для реселлинга VPN подписок через MW API.
 
-[![Fork](https://img.shields.io/badge/Fork%20of-vless--shopbot-blue)](https://github.com/evansvl/vless-shopbot)
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-
-**Данный проект является форком [evansvl/vless-shopbot](https://github.com/evansvl/vless-shopbot)**
-
-Переработан для работы через MW API
-
-</div>
-
----
-
-## О проекте
-
-VPN Reseller Bot — решение для автоматизированной продажи VPN-подписок через Telegram без необходимости иметь собственные VPN-серверы. Бот работает через MW API и предоставляет удобную веб-панель для управления.
+**Форк [evansvl/vless-shopbot](https://github.com/evansvl/vless-shopbot)** — переработан для работы через MW API.
 
 ## Возможности
 
-- **Реселлинг через MW API** — не нужен свой VPN-сервер
-- **Веб-панель** — управление тарифами, пользователями и настройками
-- **Гибкие тарифы** — создавайте планы на любое количество дней (1-365)
-- **Платежные системы:**
-  - YooKassa (карты, СБП)
-  - CryptoBot (криптовалюта)
-  - Heleket (криптовалюта)
-- **Реферальная система** — вознаграждения за приглашенных пользователей
-- **Пробный период** — автоматическая выдача тестовых ключей
-- **Принудительная подписка** — требование подписки на канал
+| Функция | Статус |
+|---------|--------|
+| Реселлинг через MW API | ✅ |
+| Создание подписок | ✅ |
+| Продление подписок | ✅ |
+| Отзыв подписок через API | ✅ |
+| Веб-панель управления | ✅ |
+| Адаптивный дизайн панели | ✅ |
+| Гибкие тарифы (1-365 дней) | ✅ |
+| YooKassa (карты, СБП) | ✅ |
+| CryptoBot | ✅ |
+| Heleket | ✅ |
+| Реферальная система | ✅ |
+| Пробный период | ✅ |
+| Принудительная подписка на канал | ✅ |
+| Support-бот | ✅ |
+| TON оплата | ⚠️ В разработке |
 
 ## Требования
 
-- Сервер Ubuntu/Debian с SSH доступом
-- Доменное имя с DNS A-записью на IP сервера
+- Ubuntu/Debian сервер
+- Домен с A-записью на IP сервера
 - API ключ от [@mwvpnbot](https://t.me/mwvpnbot)
-- Баланс на аккаунте MW VPN
 
 ## Установка
 
-### 1. Подключитесь к серверу
-
 ```bash
 ssh root@your-server-ip
-```
-
-### 2. Запустите установщик
-
-```bash
 curl -sSL https://raw.githubusercontent.com/mwdevru/shopbot-beliyspisok/main/install.sh | sudo bash
 ```
-
-### 3. Следуйте инструкциям
-
-Скрипт запросит:
-- Доменное имя
-- Email для SSL-сертификата
-
-После установки вы получите данные для входа в панель.
 
 ## Настройка
 
-### Шаг 1: Получите API ключ
-
-1. Перейдите в бот [@mwvpnbot](https://t.me/mwvpnbot)
-2. Получите API ключ в разделе API
-3. Пополните баланс
-
-### Шаг 2: Настройте панель
-
 1. Войдите в панель: `https://your-domain.com/login`
-2. Логин: `admin`, Пароль: `admin`
-3. **Сразу смените пароль!**
+2. Логин: `admin` / Пароль: `admin` — **сразу смените!**
+3. Укажите:
+   - API ключ MW API (из [@mwvpnbot](https://t.me/mwvpnbot))
+   - Токен бота (от [@BotFather](https://t.me/BotFather))
+   - Username бота (без @)
+   - Telegram ID админа (узнать: [@userinfobot](https://t.me/userinfobot))
+4. Создайте тарифы
+5. Запустите бота
 
-### Шаг 3: Заполните настройки
-
-В разделе "Настройки" укажите:
-
-- **API Ключ MW API** — ключ от [@mwvpnbot](https://t.me/mwvpnbot)
-- **Токен бота** — получите у [@BotFather](https://t.me/BotFather)
-- **Username бота** — без символа @
-- **Telegram ID администратора** — узнайте у [@userinfobot](https://t.me/userinfobot)
-
-### Шаг 4: Создайте тарифы
-
-В разделе "Управление Тарифами":
-- Название (например: "1 месяц")
-- Количество дней (1-365)
-- Цена в рублях
-
-### Шаг 5: Запустите бота
-
-Нажмите кнопку "Запустить Бота" в шапке панели.
-
-## Настройка платежей
+## Платежные системы
 
 ### YooKassa
-
-1. Получите Shop ID и Secret Key в [личном кабинете YooKassa](https://yookassa.ru)
-2. Введите их в настройках панели
-3. В YooKassa укажите webhook URL:
-   ```
-   https://your-domain.com/yookassa-webhook
-   ```
+Webhook: `https://your-domain.com/yookassa-webhook`
 
 ### CryptoBot
-
-1. Создайте приложение в [@CryptoBot](https://t.me/CryptoBot) → Crypto Pay
-2. Скопируйте токен в настройки панели
-3. Включите вебхуки на URL:
-   ```
-   https://your-domain.com/cryptobot-webhook
-   ```
+Webhook: `https://your-domain.com/cryptobot-webhook`
 
 ### Heleket
-
-1. Зарегистрируйтесь на [heleket.com](https://heleket.com)
-2. Введите Merchant ID и API Key в настройках
-3. Webhook настраивается автоматически
-
-## Управление
-
-### Просмотр логов
-
-```bash
-cd shopbot-beliyspisok
-docker-compose logs -f
-```
-
-### Перезапуск
-
-```bash
-cd shopbot-beliyspisok
-docker-compose restart
-```
-
-### Остановка
-
-```bash
-cd shopbot-beliyspisok
-docker-compose down
-```
-
-### Обновление
-
-```bash
-curl -sSL https://raw.githubusercontent.com/mwdevru/shopbot-beliyspisok/main/install.sh | sudo bash
-```
-
-## Структура проекта
-
-```
-shopbot-beliyspisok/
-├── src/shop_bot/
-│   ├── bot/              # Telegram бот
-│   │   ├── handlers.py   # Обработчики команд
-│   │   └── keyboards.py  # Клавиатуры
-│   ├── modules/
-│   │   └── mwshark_api.py # MW API клиент
-│   ├── data_manager/
-│   │   └── database.py   # Работа с БД
-│   └── webhook_server/   # Веб-панель
-├── docker-compose.yml
-├── Dockerfile
-└── install.sh
-```
+Webhook: `https://your-domain.com/heleket-webhook`
 
 ## MW API
 
-Документация API: [vpn.mwshark.host/api/docs](https://vpn.mwshark.host/api/docs)
+Документация: [vpn.mwshark.host/api/docs](https://vpn.mwshark.host/api/docs)
 
-Основные эндпоинты:
-- `GET /api/v1/balance` — баланс аккаунта
-- `GET /api/v1/tariffs` — список тарифов
-- `POST /api/v1/subscription/create` — создание подписки
-- `POST /api/v1/subscription/extend` — продление подписки
-- `GET /api/v1/subscription/{user_id}` — статус подписки
+| Эндпоинт | Метод | Описание | Используется |
+|----------|-------|----------|--------------|
+| `/api/v1/balance` | GET | Баланс аккаунта | ✅ Dashboard |
+| `/api/v1/tariffs` | GET | Список тарифов | ✅ |
+| `/api/v1/calculate` | GET | Расчёт цены | ✅ |
+| `/api/v1/subscription/create` | POST | Создание подписки | ✅ Покупка/выдача |
+| `/api/v1/subscription/extend` | POST | Продление | ✅ Продление/+дни |
+| `/api/v1/subscription/revoke` | POST | Отзыв подписки | ✅ Отзыв ключей |
+| `/api/v1/subscription/{user_id}` | GET | Статус подписки | ✅ |
+| `/api/v1/grants` | GET | Активные гранты | ✅ |
+| `/api/v1/history` | GET | История покупок | ❌ Не используется |
+
+## Управление
+
+```bash
+cd shopbot-beliyspisok
+
+docker-compose logs -f      # логи
+docker-compose restart      # перезапуск
+docker-compose down         # остановка
+```
+
+## Структура
+
+```
+src/shop_bot/
+├── bot/
+│   ├── handlers.py      # обработчики команд
+│   ├── keyboards.py     # клавиатуры
+│   └── support_handlers.py
+├── modules/
+│   └── mwshark_api.py   # MW API клиент
+├── data_manager/
+│   └── database.py      # SQLite
+└── webhook_server/
+    ├── app.py           # Flask + webhooks
+    ├── templates/       # HTML шаблоны
+    └── static/          # CSS/JS
+```
 
 ## Лицензия
 
-GNU General Public License v3.0 — см. файл [LICENSE](LICENSE)
+GPL-3.0 — см. [LICENSE](LICENSE)
 
 ---
 
-<div align="center">
-
-**Оригинальный проект:** [evansvl/vless-shopbot](https://github.com/evansvl/vless-shopbot)
-
-</div>
+Оригинал: [evansvl/vless-shopbot](https://github.com/evansvl/vless-shopbot)
