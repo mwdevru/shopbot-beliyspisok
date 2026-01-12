@@ -6,4 +6,8 @@ services:
       - '1488:1488'
     volumes:
       - .:/app/project
+      - bot_data:/app/project/data
       - /app/.venv
+
+volumes:
+  bot_data:

@@ -2,7 +2,6 @@ import sqlite3
 import aiosqlite
 import json
 import logging
-import asyncio
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -10,81 +9,135 @@ from typing import Optional, List, Dict, Any
 
 logger = logging.getLogger(__name__)
 
-PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", "/app/project"))
-DB_FILE = PROJECT_ROOT / "data.db"
-OLD_DB_FILE = PROJECT_ROOT / "users.db"
+DATA_DIR = Path(os.environ.get("DATA_DIR", "/app/project/data"))
+DB_FILE = DATA_DIR / "data.db"
+OLD_DB_FILE = Path("/app/project") / "users.db"
+OLD_DATA_DB = Path("/app/project") / "data.db"
 
 _sync_conn: Optional[sqlite3.Connection] = None
-_db_lock = asyncio.Lock() if asyncio.get_event_loop_policy() else None
+
+
+def _ensure_data_dir():
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    if OLD_DATA_DB.exists() and not DB_FILE.exists():
+        import shutil
+        shutil.copy(OLD_DATA_DB, DB_FILE)
+        logger.info(f"Migrated data.db from {OLD_DATA_DB} to {DB_FILE}")
+
 
 def get_sync_conn() -> sqlite3.Connection:
     global _sync_conn
     if _sync_conn is None:
-        PROJECT_ROOT.mkdir(parents=True, exist_ok=True)
+        _ensure_data_dir()
         _sync_conn = sqlite3.connect(str(DB_FILE), check_same_thread=False, timeout=30)
         _sync_conn.row_factory = sqlite3.Row
         _sync_conn.execute("PRAGMA journal_mode=WAL")
-        _sync_conn.execute("PRAGMA synchronous=NORMAL")
+        _sync_conn.execute("PRAGMA synchronous=FULL")
+        _sync_conn.execute("PRAGMA busy_timeout=30000")
     return _sync_conn
 
+
+def close_connection():
+    global _sync_conn
+    if _sync_conn:
+        _sync_conn.close()
+        _sync_conn = None
+
+
 async def get_async_conn() -> aiosqlite.Connection:
-    PROJECT_ROOT.mkdir(parents=True, exist_ok=True)
+    _ensure_data_dir()
     conn = await aiosqlite.connect(str(DB_FILE), timeout=30)
     conn.row_factory = aiosqlite.Row
     await conn.execute("PRAGMA journal_mode=WAL")
-    await conn.execute("PRAGMA synchronous=NORMAL")
+    await conn.execute("PRAGMA synchronous=FULL")
     return conn
+
 
 def initialize_db():
     migrate_from_old_db()
     conn = get_sync_conn()
     cursor = conn.cursor()
+    
     cursor.execute('''CREATE TABLE IF NOT EXISTS users (
         telegram_id INTEGER PRIMARY KEY, username TEXT, total_spent REAL DEFAULT 0,
         total_months INTEGER DEFAULT 0, trial_used BOOLEAN DEFAULT 0,
         agreed_to_terms BOOLEAN DEFAULT 0, registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         is_banned BOOLEAN DEFAULT 0, referred_by INTEGER,
         referral_balance REAL DEFAULT 0, referral_balance_all REAL DEFAULT 0)''')
+    
     cursor.execute('''CREATE TABLE IF NOT EXISTS vpn_keys (
         key_id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL,
         subscription_link TEXT, expiry_date TIMESTAMP, created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+    
     cursor.execute('''CREATE TABLE IF NOT EXISTS transactions (
         transaction_id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT,
         payment_id TEXT UNIQUE, user_id INTEGER NOT NULL, status TEXT NOT NULL,
         amount_rub REAL NOT NULL, amount_currency REAL, currency_name TEXT,
         payment_method TEXT, metadata TEXT, created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS bot_settings (key TEXT PRIMARY KEY, value TEXT)''')
+    
+    cursor.execute('''CREATE TABLE IF NOT EXISTS bot_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '')''')
+    
     cursor.execute('''CREATE TABLE IF NOT EXISTS support_threads (user_id INTEGER PRIMARY KEY, thread_id INTEGER NOT NULL)''')
+    
     cursor.execute('''CREATE TABLE IF NOT EXISTS plans (
         plan_id INTEGER PRIMARY KEY AUTOINCREMENT, plan_name TEXT NOT NULL,
         days INTEGER NOT NULL, price REAL NOT NULL)''')
+    
     cursor.execute('''CREATE TABLE IF NOT EXISTS platega_pending (
         transaction_id TEXT PRIMARY KEY, metadata TEXT NOT NULL,
         created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+    
     cursor.execute('''CREATE TABLE IF NOT EXISTS cryptobot_pending (
         invoice_id TEXT PRIMARY KEY, metadata TEXT NOT NULL,
         created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+    
     defaults = {
-        "panel_login": "admin", "panel_password": "admin", "about_text": None,
-        "terms_url": None, "privacy_url": None, "support_user": None, "support_text": None,
-        "channel_url": None, "force_subscription": "true", "receipt_email": "example@example.com",
-        "telegram_bot_token": None, "support_bot_token": None, "telegram_bot_username": None,
-        "trial_enabled": "true", "trial_duration_days": "3", "enable_referrals": "true",
-        "referral_percentage": "10", "referral_discount": "5", "minimum_withdrawal": "100",
-        "support_group_id": None, "admin_telegram_id": None, "yookassa_shop_id": None,
-        "yookassa_secret_key": None, "sbp_enabled": "false", "cryptobot_token": None,
-        "heleket_merchant_id": None, "heleket_api_key": None, "domain": None,
-        "ton_wallet_address": None, "tonapi_key": None, "mwshark_api_key": None,
-        "platega_merchant_id": None, "platega_secret_key": None, "platega_payment_method": "2",
+        "panel_login": "admin", 
+        "panel_password": "admin", 
+        "about_text": "",
+        "terms_url": "", 
+        "privacy_url": "", 
+        "support_user": "", 
+        "support_text": "",
+        "channel_url": "", 
+        "force_subscription": "true", 
+        "receipt_email": "example@example.com",
+        "telegram_bot_token": "", 
+        "support_bot_token": "", 
+        "telegram_bot_username": "",
+        "trial_enabled": "true", 
+        "trial_duration_days": "3", 
+        "enable_referrals": "true",
+        "referral_percentage": "10", 
+        "referral_discount": "5", 
+        "minimum_withdrawal": "100",
+        "support_group_id": "", 
+        "admin_telegram_id": "", 
+        "yookassa_shop_id": "",
+        "yookassa_secret_key": "", 
+        "sbp_enabled": "false", 
+        "cryptobot_token": "",
+        "heleket_merchant_id": "", 
+        "heleket_api_key": "", 
+        "domain": "",
+        "ton_wallet_address": "", 
+        "tonapi_key": "", 
+        "mwshark_api_key": "",
+        "platega_merchant_id": "", 
+        "platega_secret_key": "", 
+        "platega_payment_method": "2",
         "android_url": "https://telegra.ph/Instrukciya-Android-11-09",
         "windows_url": "https://telegra.ph/Instrukciya-Windows-11-09",
         "ios_url": "https://telegra.ph/Instrukcii-ios-11-09",
         "linux_url": "https://telegra.ph/Instrukciya-Linux-11-09"
     }
+    
     for key, value in defaults.items():
         cursor.execute("INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)", (key, value))
+    
     conn.commit()
-    logger.info("Database initialized")
+    logger.info(f"Database initialized at {DB_FILE}")
+
 
 def migrate_from_old_db():
     if not OLD_DB_FILE.exists() or DB_FILE.exists():
@@ -92,28 +145,40 @@ def migrate_from_old_db():
     logger.info(f"Migrating from {OLD_DB_FILE} to {DB_FILE}")
     try:
         import shutil
+        _ensure_data_dir()
         shutil.copy(OLD_DB_FILE, DB_FILE)
         OLD_DB_FILE.rename(OLD_DB_FILE.with_suffix('.db.bak'))
-        logger.info("Migration completed (copy method)")
+        logger.info("Migration completed")
     except Exception as e:
         logger.error(f"Migration error: {e}")
+
 
 def get_setting(key: str) -> Optional[str]:
     cursor = get_sync_conn().cursor()
     cursor.execute("SELECT value FROM bot_settings WHERE key = ?", (key,))
     result = cursor.fetchone()
-    return result[0] if result else None
+    if result is None:
+        return None
+    val = result[0]
+    return val if val else None
+
 
 def get_all_settings() -> Dict[str, Any]:
     cursor = get_sync_conn().cursor()
     cursor.execute("SELECT key, value FROM bot_settings")
-    return {row['key']: row['value'] for row in cursor.fetchall()}
+    result = {}
+    for row in cursor.fetchall():
+        val = row['value']
+        result[row['key']] = val if val else None
+    return result
+
 
 def update_setting(key: str, value: str):
     conn = get_sync_conn()
-    conn.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES (?, ?)", (key, value))
+    val = value if value else ""
+    conn.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES (?, ?)", (key, val))
     conn.commit()
-    logger.debug(f"Setting updated: {key}")
+
 
 def get_user(telegram_id: int) -> Optional[Dict]:
     cursor = get_sync_conn().cursor()
@@ -121,10 +186,12 @@ def get_user(telegram_id: int) -> Optional[Dict]:
     row = cursor.fetchone()
     return dict(row) if row else None
 
+
 def get_all_users() -> List[Dict]:
     cursor = get_sync_conn().cursor()
     cursor.execute("SELECT * FROM users ORDER BY registration_date DESC")
     return [dict(row) for row in cursor.fetchall()]
+
 
 def register_user_if_not_exists(telegram_id: int, username: str, referrer_id: Optional[int]):
     conn = get_sync_conn()
@@ -137,25 +204,30 @@ def register_user_if_not_exists(telegram_id: int, username: str, referrer_id: Op
         cursor.execute("UPDATE users SET username = ? WHERE telegram_id = ?", (username, telegram_id))
     conn.commit()
 
+
 def ban_user(telegram_id: int):
     conn = get_sync_conn()
     conn.execute("UPDATE users SET is_banned = 1 WHERE telegram_id = ?", (telegram_id,))
     conn.commit()
+
 
 def unban_user(telegram_id: int):
     conn = get_sync_conn()
     conn.execute("UPDATE users SET is_banned = 0 WHERE telegram_id = ?", (telegram_id,))
     conn.commit()
 
+
 def set_terms_agreed(telegram_id: int):
     conn = get_sync_conn()
     conn.execute("UPDATE users SET agreed_to_terms = 1 WHERE telegram_id = ?", (telegram_id,))
     conn.commit()
 
+
 def set_trial_used(telegram_id: int):
     conn = get_sync_conn()
     conn.execute("UPDATE users SET trial_used = 1 WHERE telegram_id = ?", (telegram_id,))
     conn.commit()
+
 
 def update_user_stats(telegram_id: int, amount_spent: float, months_purchased: int):
     conn = get_sync_conn()
@@ -163,20 +235,24 @@ def update_user_stats(telegram_id: int, amount_spent: float, months_purchased: i
                  (amount_spent, months_purchased, telegram_id))
     conn.commit()
 
+
 def add_to_referral_balance(user_id: int, amount: float):
     conn = get_sync_conn()
     conn.execute("UPDATE users SET referral_balance = referral_balance + ? WHERE telegram_id = ?", (amount, user_id))
     conn.commit()
+
 
 def set_referral_balance(user_id: int, value: float):
     conn = get_sync_conn()
     conn.execute("UPDATE users SET referral_balance = ? WHERE telegram_id = ?", (value, user_id))
     conn.commit()
 
+
 def set_referral_balance_all(user_id: int, value: float):
     conn = get_sync_conn()
     conn.execute("UPDATE users SET referral_balance_all = ? WHERE telegram_id = ?", (value, user_id))
     conn.commit()
+
 
 def get_referral_balance(user_id: int) -> float:
     cursor = get_sync_conn().cursor()
@@ -184,15 +260,18 @@ def get_referral_balance(user_id: int) -> float:
     result = cursor.fetchone()
     return float(result[0]) if result else 0.0
 
+
 def get_referral_count(user_id: int) -> int:
     cursor = get_sync_conn().cursor()
     cursor.execute("SELECT COUNT(*) FROM users WHERE referred_by = ?", (user_id,))
     return cursor.fetchone()[0] or 0
 
+
 def get_user_keys(user_id: int) -> List[Dict]:
     cursor = get_sync_conn().cursor()
     cursor.execute("SELECT * FROM vpn_keys WHERE user_id = ? ORDER BY key_id", (user_id,))
     return [dict(row) for row in cursor.fetchall()]
+
 
 def get_key_by_id(key_id: int) -> Optional[Dict]:
     cursor = get_sync_conn().cursor()
@@ -200,10 +279,12 @@ def get_key_by_id(key_id: int) -> Optional[Dict]:
     row = cursor.fetchone()
     return dict(row) if row else None
 
+
 def get_all_keys() -> List[Dict]:
     cursor = get_sync_conn().cursor()
     cursor.execute("SELECT * FROM vpn_keys")
     return [dict(row) for row in cursor.fetchall()]
+
 
 def add_new_key(user_id: int, subscription_link: str, expiry_timestamp_ms: int) -> Optional[int]:
     conn = get_sync_conn()
@@ -214,15 +295,18 @@ def add_new_key(user_id: int, subscription_link: str, expiry_timestamp_ms: int) 
     conn.commit()
     return cursor.lastrowid
 
+
 def delete_key_by_id(key_id: int):
     conn = get_sync_conn()
     conn.execute("DELETE FROM vpn_keys WHERE key_id = ?", (key_id,))
     conn.commit()
 
+
 def delete_user_keys(user_id: int):
     conn = get_sync_conn()
     conn.execute("DELETE FROM vpn_keys WHERE user_id = ?", (user_id,))
     conn.commit()
+
 
 def update_key_info(key_id: int, subscription_link: str, new_expiry_ms: int):
     conn = get_sync_conn()
@@ -230,6 +314,7 @@ def update_key_info(key_id: int, subscription_link: str, new_expiry_ms: int):
     conn.execute("UPDATE vpn_keys SET subscription_link = ?, expiry_date = ? WHERE key_id = ?",
                  (subscription_link, expiry_date, key_id))
     conn.commit()
+
 
 def update_key_expiry_days(key_id: int, days_delta: int) -> bool:
     conn = get_sync_conn()
@@ -244,19 +329,23 @@ def update_key_expiry_days(key_id: int, days_delta: int) -> bool:
         return True
     return False
 
+
 def set_key_expiry_date(key_id: int, new_expiry: datetime) -> bool:
     conn = get_sync_conn()
     conn.execute("UPDATE vpn_keys SET expiry_date = ? WHERE key_id = ?", (new_expiry, key_id))
     conn.commit()
     return True
 
+
 def get_next_key_number(user_id: int) -> int:
     return len(get_user_keys(user_id)) + 1
+
 
 def get_all_plans() -> List[Dict]:
     cursor = get_sync_conn().cursor()
     cursor.execute("SELECT * FROM plans ORDER BY days")
     return [dict(row) for row in cursor.fetchall()]
+
 
 def get_plan_by_id(plan_id: int) -> Optional[Dict]:
     cursor = get_sync_conn().cursor()
@@ -264,15 +353,18 @@ def get_plan_by_id(plan_id: int) -> Optional[Dict]:
     row = cursor.fetchone()
     return dict(row) if row else None
 
+
 def create_plan(plan_name: str, days: int, price: float):
     conn = get_sync_conn()
     conn.execute("INSERT INTO plans (plan_name, days, price) VALUES (?, ?, ?)", (plan_name, days, price))
     conn.commit()
 
+
 def delete_plan(plan_id: int):
     conn = get_sync_conn()
     conn.execute("DELETE FROM plans WHERE plan_id = ?", (plan_id,))
     conn.commit()
+
 
 def log_transaction(username: str, transaction_id: Optional[str], payment_id: Optional[str], user_id: int,
                     status: str, amount_rub: float, amount_currency: Optional[float], currency_name: Optional[str],
@@ -285,6 +377,7 @@ def log_transaction(username: str, transaction_id: Optional[str], payment_id: Op
                   payment_method, metadata, datetime.now()))
     conn.commit()
 
+
 def create_pending_transaction(payment_id: str, user_id: int, amount_rub: float, metadata: dict) -> int:
     conn = get_sync_conn()
     cursor = conn.cursor()
@@ -292,6 +385,7 @@ def create_pending_transaction(payment_id: str, user_id: int, amount_rub: float,
                    (payment_id, user_id, 'pending', amount_rub, json.dumps(metadata)))
     conn.commit()
     return cursor.lastrowid
+
 
 def find_and_complete_ton_transaction(payment_id: str, amount_ton: float) -> Optional[Dict]:
     conn = get_sync_conn()
@@ -305,10 +399,12 @@ def find_and_complete_ton_transaction(payment_id: str, amount_ton: float) -> Opt
     conn.commit()
     return json.loads(tx['metadata'])
 
+
 def create_pending_platega_transaction(transaction_id: str, metadata: str):
     conn = get_sync_conn()
     conn.execute("INSERT OR REPLACE INTO platega_pending (transaction_id, metadata) VALUES (?, ?)", (transaction_id, metadata))
     conn.commit()
+
 
 def get_pending_platega_transaction(transaction_id: str) -> Optional[Dict]:
     cursor = get_sync_conn().cursor()
@@ -318,20 +414,24 @@ def get_pending_platega_transaction(transaction_id: str) -> Optional[Dict]:
         return json.loads(row['metadata'])
     return None
 
+
 def delete_pending_platega_transaction(transaction_id: str):
     conn = get_sync_conn()
     conn.execute("DELETE FROM platega_pending WHERE transaction_id = ?", (transaction_id,))
     conn.commit()
+
 
 def get_all_pending_platega_transactions() -> List[Dict]:
     cursor = get_sync_conn().cursor()
     cursor.execute("SELECT transaction_id, metadata FROM platega_pending")
     return [{"transaction_id": row['transaction_id'], "metadata": json.loads(row['metadata'])} for row in cursor.fetchall()]
 
+
 def create_pending_cryptobot_invoice(invoice_id: str, metadata: str):
     conn = get_sync_conn()
     conn.execute("INSERT OR REPLACE INTO cryptobot_pending (invoice_id, metadata) VALUES (?, ?)", (invoice_id, metadata))
     conn.commit()
+
 
 def get_pending_cryptobot_invoice(invoice_id: str) -> Optional[Dict]:
     cursor = get_sync_conn().cursor()
@@ -341,15 +441,18 @@ def get_pending_cryptobot_invoice(invoice_id: str) -> Optional[Dict]:
         return json.loads(row['metadata'])
     return None
 
+
 def delete_pending_cryptobot_invoice(invoice_id: str):
     conn = get_sync_conn()
     conn.execute("DELETE FROM cryptobot_pending WHERE invoice_id = ?", (invoice_id,))
     conn.commit()
 
+
 def get_all_pending_cryptobot_invoices() -> List[Dict]:
     cursor = get_sync_conn().cursor()
     cursor.execute("SELECT invoice_id, metadata FROM cryptobot_pending")
     return [{"invoice_id": row['invoice_id'], "metadata": json.loads(row['metadata'])} for row in cursor.fetchall()]
+
 
 def get_paginated_transactions(page: int = 1, per_page: int = 15) -> tuple:
     offset = (page - 1) * per_page
@@ -372,6 +475,7 @@ def get_paginated_transactions(page: int = 1, per_page: int = 15) -> tuple:
         transactions.append(tx)
     return transactions, total
 
+
 def get_recent_transactions(limit: int = 15) -> List[Dict]:
     cursor = get_sync_conn().cursor()
     cursor.execute("""SELECT k.key_id, k.created_date, u.telegram_id, u.username
@@ -379,16 +483,19 @@ def get_recent_transactions(limit: int = 15) -> List[Dict]:
                       ORDER BY k.created_date DESC LIMIT ?""", (limit,))
     return [dict(row) for row in cursor.fetchall()]
 
+
 def get_latest_transaction(user_id: int) -> Optional[Dict]:
     cursor = get_sync_conn().cursor()
     cursor.execute("SELECT * FROM transactions WHERE user_id = ? ORDER BY created_date DESC LIMIT 1", (user_id,))
     row = cursor.fetchone()
     return dict(row) if row else None
 
+
 def add_support_thread(user_id: int, thread_id: int):
     conn = get_sync_conn()
     conn.execute("INSERT OR REPLACE INTO support_threads (user_id, thread_id) VALUES (?, ?)", (user_id, thread_id))
     conn.commit()
+
 
 def get_support_thread_id(user_id: int) -> Optional[int]:
     cursor = get_sync_conn().cursor()
@@ -396,31 +503,37 @@ def get_support_thread_id(user_id: int) -> Optional[int]:
     result = cursor.fetchone()
     return result[0] if result else None
 
+
 def get_user_id_by_thread(thread_id: int) -> Optional[int]:
     cursor = get_sync_conn().cursor()
     cursor.execute("SELECT user_id FROM support_threads WHERE thread_id = ?", (thread_id,))
     result = cursor.fetchone()
     return result[0] if result else None
 
+
 def get_user_count() -> int:
     cursor = get_sync_conn().cursor()
     cursor.execute("SELECT COUNT(*) FROM users")
     return cursor.fetchone()[0] or 0
+
 
 def get_total_keys_count() -> int:
     cursor = get_sync_conn().cursor()
     cursor.execute("SELECT COUNT(*) FROM vpn_keys")
     return cursor.fetchone()[0] or 0
 
+
 def get_total_spent_sum() -> float:
     cursor = get_sync_conn().cursor()
     cursor.execute("SELECT SUM(total_spent) FROM users")
     return cursor.fetchone()[0] or 0.0
 
+
 def get_all_vpn_users() -> List[Dict]:
     cursor = get_sync_conn().cursor()
     cursor.execute("SELECT DISTINCT user_id FROM vpn_keys")
     return [dict(row) for row in cursor.fetchall()]
+
 
 def get_daily_stats_for_charts(days: int = 30) -> Dict:
     stats = {'users': {}, 'keys': {}}
@@ -435,6 +548,7 @@ def get_daily_stats_for_charts(days: int = 30) -> Dict:
         stats['keys'][row[0]] = row[1]
     return stats
 
+
 def search_users(query: str) -> List[Dict]:
     cursor = get_sync_conn().cursor()
     pattern = f"%{query}%"
@@ -442,11 +556,13 @@ def search_users(query: str) -> List[Dict]:
                       ORDER BY registration_date DESC""", (pattern, pattern))
     return [dict(row) for row in cursor.fetchall()]
 
+
 def get_users_with_active_keys() -> List[Dict]:
     cursor = get_sync_conn().cursor()
     cursor.execute("""SELECT DISTINCT u.* FROM users u INNER JOIN vpn_keys k ON u.telegram_id = k.user_id
                       WHERE k.expiry_date > datetime('now') ORDER BY u.registration_date DESC""")
     return [dict(row) for row in cursor.fetchall()]
+
 
 def get_users_without_keys() -> List[Dict]:
     cursor = get_sync_conn().cursor()
@@ -454,20 +570,24 @@ def get_users_without_keys() -> List[Dict]:
                       WHERE k.key_id IS NULL ORDER BY u.registration_date DESC""")
     return [dict(row) for row in cursor.fetchall()]
 
+
 def get_banned_users_count() -> int:
     cursor = get_sync_conn().cursor()
     cursor.execute("SELECT COUNT(*) FROM users WHERE is_banned = 1")
     return cursor.fetchone()[0] or 0
+
 
 def get_active_keys_count() -> int:
     cursor = get_sync_conn().cursor()
     cursor.execute("SELECT COUNT(*) FROM vpn_keys WHERE expiry_date > datetime('now')")
     return cursor.fetchone()[0] or 0
 
+
 def get_expired_keys_count() -> int:
     cursor = get_sync_conn().cursor()
     cursor.execute("SELECT COUNT(*) FROM vpn_keys WHERE expiry_date <= datetime('now')")
     return cursor.fetchone()[0] or 0
+
 
 def get_transactions_stats() -> Dict:
     stats = {'total': 0, 'today': 0, 'week': 0, 'month': 0, 'total_amount': 0}
@@ -484,22 +604,29 @@ def get_transactions_stats() -> Dict:
     stats['month'] = cursor.fetchone()[0] or 0
     return stats
 
+
 async def async_get_user(telegram_id: int) -> Optional[Dict]:
     async with await get_async_conn() as conn:
         cursor = await conn.execute("SELECT * FROM users WHERE telegram_id = ?", (telegram_id,))
         row = await cursor.fetchone()
         return dict(row) if row else None
 
+
 async def async_get_user_keys(user_id: int) -> List[Dict]:
     async with await get_async_conn() as conn:
         cursor = await conn.execute("SELECT * FROM vpn_keys WHERE user_id = ? ORDER BY key_id", (user_id,))
         return [dict(row) for row in await cursor.fetchall()]
 
+
 async def async_get_setting(key: str) -> Optional[str]:
     async with await get_async_conn() as conn:
         cursor = await conn.execute("SELECT value FROM bot_settings WHERE key = ?", (key,))
         row = await cursor.fetchone()
-        return row[0] if row else None
+        if row is None:
+            return None
+        val = row[0]
+        return val if val else None
+
 
 async def async_get_all_plans() -> List[Dict]:
     async with await get_async_conn() as conn:
