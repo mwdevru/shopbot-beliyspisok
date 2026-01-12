@@ -46,10 +46,14 @@
 <span>Реф. баланс</span>
 <span style="color:var(--text)">{{ (user.referral_balance or 0)|float|round(2) }} ₽</span>
 </div>
+<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+<span>Всего заработано</span>
+<span style="color:var(--text)">{{ (user.referral_balance_all or 0)|float|round(2) }} ₽</span>
+</div>
 {% if user.referred_by %}
 <div style="display:flex;justify-content:space-between;padding:8px 0">
 <span>Приглашён</span>
-<span style="color:var(--text)">{{ user.referred_by }}</span>
+<a href="{{ url_for('user_detail_page', user_id=user.referred_by) }}" style="color:var(--primary)">{{ user.referred_by }}</a>
 </div>
 {% endif %}
 </div>
@@ -65,9 +69,12 @@
 {% endif %}
 {% if user.user_keys %}
 <form action="{{ url_for('revoke_keys_route', user_id=user.telegram_id|int) }}" method="post" data-confirm="Отозвать все ключи через API?">
-<button type="submit" class="btn btn-danger btn-sm">🗑 Отозвать все ключи</button>
+<button type="submit" class="btn btn-danger btn-sm">🗑 Отозвать ключи</button>
 </form>
 {% endif %}
+<form action="{{ url_for('delete_user_route', user_id=user.telegram_id|int) }}" method="post" data-confirm="Удалить пользователя полностью? Это действие необратимо!">
+<button type="submit" class="btn btn-danger btn-sm">🗑 Удалить</button>
+</form>
 </div>
 </div>
 <div class="card" style="margin-bottom:24px">
@@ -77,6 +84,27 @@
 <textarea name="message" class="form-input" rows="3" placeholder="Текст сообщения (HTML)" required></textarea>
 </div>
 <button type="submit" class="btn btn-primary btn-sm">Отправить</button>
+</form>
+</div>
+<div class="card" style="margin-bottom:24px">
+<div class="card-title">⚙️ Управление</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+{% if user.trial_used %}
+<form action="{{ url_for('reset_trial_route', user_id=user.telegram_id|int) }}" method="post">
+<button type="submit" class="btn btn-ghost btn-sm" style="width:100%">🔄 Сбросить триал</button>
+</form>
+{% else %}
+<button class="btn btn-ghost btn-sm" style="width:100%;opacity:0.5" disabled>Триал доступен</button>
+{% endif %}
+<form action="{{ url_for('reset_stats_route', user_id=user.telegram_id|int) }}" method="post" data-confirm="Сбросить статистику?">
+<button type="submit" class="btn btn-ghost btn-sm" style="width:100%">📊 Сбросить статистику</button>
+</form>
+</div>
+<form action="{{ url_for('set_balance_route', user_id=user.telegram_id|int) }}" method="post" style="margin-top:12px">
+<div style="display:flex;gap:8px">
+<input type="number" name="balance" class="form-input" value="{{ (user.referral_balance or 0)|float|round(2) }}" step="0.01" style="flex:1">
+<button type="submit" class="btn btn-ghost btn-sm">💰 Установить баланс</button>
+</div>
 </form>
 </div>
 {% if api_subscription %}
@@ -94,6 +122,10 @@
 <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
 <span style="color:var(--text-muted)">Истекает</span>
 <span>{{ api_subscription.expiry_date[:10] if api_subscription.expiry_date else '—' }}</span>
+</div>
+<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+<span style="color:var(--text-muted)">Устройств</span>
+<span>{{ api_subscription.limit_ip or 'Без лимита' }}</span>
 </div>
 <div style="display:flex;justify-content:space-between;padding:8px 0">
 <span style="color:var(--text-muted)">Статус</span>
@@ -119,7 +151,7 @@
 <div class="card" style="margin-bottom:24px">
 <div class="card-title">📅 Изменить срок</div>
 <form action="{{ url_for('modify_user_days_route', user_id=user.telegram_id|int) }}" method="post">
-<input type="hidden" name="key_id" value="{{ user.user_keys[0].key_id|int }}">
+<input type="hidden" name="key_id" value="{{ user.user_keys[0].key_id|int if user.user_keys[0].key_id else 0 }}">
 <div class="form-group">
 <label class="form-label">Дней (+/-)</label>
 <input type="number" name="days" class="form-input" placeholder="+30 или -10" required>

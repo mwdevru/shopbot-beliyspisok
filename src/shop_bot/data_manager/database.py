@@ -249,10 +249,31 @@ def set_trial_used(telegram_id: int):
     conn.commit()
 
 
+def reset_trial(telegram_id: int):
+    conn = get_sync_conn()
+    conn.execute("UPDATE users SET trial_used = 0 WHERE telegram_id = ?", (telegram_id,))
+    conn.commit()
+
+
+def delete_user(telegram_id: int):
+    conn = get_sync_conn()
+    conn.execute("DELETE FROM vpn_keys WHERE user_id = ?", (telegram_id,))
+    conn.execute("DELETE FROM transactions WHERE user_id = ?", (telegram_id,))
+    conn.execute("DELETE FROM support_threads WHERE user_id = ?", (telegram_id,))
+    conn.execute("DELETE FROM users WHERE telegram_id = ?", (telegram_id,))
+    conn.commit()
+
+
 def update_user_stats(telegram_id: int, amount_spent: float, months_purchased: int):
     conn = get_sync_conn()
     conn.execute("UPDATE users SET total_spent = total_spent + ?, total_months = total_months + ? WHERE telegram_id = ?",
                  (amount_spent, months_purchased, telegram_id))
+    conn.commit()
+
+
+def reset_user_stats(telegram_id: int):
+    conn = get_sync_conn()
+    conn.execute("UPDATE users SET total_spent = 0, total_months = 0 WHERE telegram_id = ?", (telegram_id,))
     conn.commit()
 
 

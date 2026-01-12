@@ -16,7 +16,7 @@ from flask import Flask, request, render_template, redirect, url_for, flash, ses
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-CURRENT_VERSION = "1.4.7"
+CURRENT_VERSION = "1.4.8"
 GITHUB_REPO = "mwdevru/shopbot-beliyspisok"
 
 from shop_bot.modules import mwshark_api
@@ -29,7 +29,8 @@ from shop_bot.data_manager.database import (
     ban_user, unban_user, delete_user_keys, get_setting, find_and_complete_ton_transaction,
     get_user, update_key_expiry_days, set_key_expiry_date, get_key_by_id, add_new_key,
     search_users, get_users_with_active_keys, get_users_without_keys, get_banned_users_count,
-    get_active_keys_count, get_expired_keys_count, get_transactions_stats, delete_key_by_id
+    get_active_keys_count, get_expired_keys_count, get_transactions_stats, delete_key_by_id,
+    reset_trial, delete_user, reset_user_stats, set_referral_balance
 )
 
 _bot_controller = None
@@ -406,6 +407,46 @@ def create_webhook_app(bot_controller_instance):
             logger.error(f"Grant key error: {e}")
             flash(f'Ошибка: {e}', 'danger')
         
+        return redirect(url_for('users_page'))
+
+    @flask_app.route('/users/reset-trial/<int:user_id>', methods=['POST'])
+    @login_required
+    def reset_trial_route(user_id):
+        reset_trial(user_id)
+        flash(f'Триал сброшен для {user_id}.', 'success')
+        return redirect(url_for('user_detail_page', user_id=user_id))
+
+    @flask_app.route('/users/reset-stats/<int:user_id>', methods=['POST'])
+    @login_required
+    def reset_stats_route(user_id):
+        reset_user_stats(user_id)
+        flash(f'Статистика сброшена для {user_id}.', 'success')
+        return redirect(url_for('user_detail_page', user_id=user_id))
+
+    @flask_app.route('/users/set-balance/<int:user_id>', methods=['POST'])
+    @login_required
+    def set_balance_route(user_id):
+        balance = request.form.get('balance', type=float, default=0)
+        set_referral_balance(user_id, balance)
+        flash(f'Баланс установлен: {balance} ₽', 'success')
+        return redirect(url_for('user_detail_page', user_id=user_id))
+
+    @flask_app.route('/users/delete/<int:user_id>', methods=['POST'])
+    @login_required
+    def delete_user_route(user_id):
+        api_key = get_setting("mwshark_api_key")
+        if api_key:
+            try:
+                loop = current_app.config.get('EVENT_LOOP')
+                if loop and loop.is_running():
+                    future = asyncio.run_coroutine_threadsafe(
+                        mwshark_api.revoke_subscription_for_user(api_key, user_id), loop
+                    )
+                    future.result(timeout=10)
+            except Exception as e:
+                logger.error(f"Revoke before delete error: {e}")
+        delete_user(user_id)
+        flash(f'Пользователь {user_id} удалён.', 'success')
         return redirect(url_for('users_page'))
 
     @flask_app.route('/add-plan', methods=['POST'])
