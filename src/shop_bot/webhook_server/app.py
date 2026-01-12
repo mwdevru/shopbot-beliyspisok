@@ -165,9 +165,9 @@ def create_webhook_app(bot_controller_instance):
     @login_required
     def settings_page():
         settings_keys = [
-            "panel_login", "about_text", "terms_url", "privacy_url",
+            "panel_login", "about_text", "support_text", "terms_url", "privacy_url",
             "android_url", "ios_url", "windows_url", "linux_url",
-            "support_user", "support_text", "channel_url", "telegram_bot_token",
+            "support_user", "channel_url", "telegram_bot_token",
             "telegram_bot_username", "admin_telegram_id", "referral_percentage",
             "referral_discount", "trial_duration_days", "minimum_withdrawal",
             "support_group_id", "support_bot_token", "mwshark_api_key"
@@ -461,7 +461,7 @@ def create_webhook_app(bot_controller_instance):
         total_pages = ceil(total / per_page)
         stats = get_transactions_stats()
         return render_template('transactions.html', transactions=transactions, stats=stats,
-                               current_page=page, total_pages=total, **get_common_template_data())
+                               current_page=page, total_pages=total_pages, **get_common_template_data())
 
     @flask_app.route('/export/users')
     @login_required
