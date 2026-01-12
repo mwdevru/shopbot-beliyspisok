@@ -5,19 +5,19 @@
 <div class="stats-grid" style="margin-bottom:24px">
 <div class="stat-card">
 <div class="stat-label">YooKassa</div>
-<div class="stat-value">{% if settings.yookassa_shop_id and settings.yookassa_secret_key %}✅{% else %}❌{% endif %}</div>
+<div class="stat-value">{% if settings.yookassa_shop_id and settings.yookassa_secret_key and settings.yookassa_shop_id|length > 5 and settings.yookassa_shop_id != 'admin' %}✅{% else %}❌{% endif %}</div>
 </div>
 <div class="stat-card">
 <div class="stat-label">Platega</div>
-<div class="stat-value">{% if settings.platega_merchant_id and settings.platega_secret_key %}✅{% else %}❌{% endif %}</div>
+<div class="stat-value">{% if settings.platega_merchant_id and settings.platega_secret_key and settings.platega_merchant_id|length > 10 %}✅{% else %}❌{% endif %}</div>
 </div>
 <div class="stat-card">
 <div class="stat-label">CryptoBot</div>
-<div class="stat-value">{% if settings.cryptobot_token %}✅{% else %}❌{% endif %}</div>
+<div class="stat-value">{% if settings.cryptobot_token and settings.cryptobot_token|length > 10 %}✅{% else %}❌{% endif %}</div>
 </div>
 <div class="stat-card">
 <div class="stat-label">Heleket</div>
-<div class="stat-value">{% if settings.heleket_merchant_id and settings.heleket_api_key %}✅{% else %}❌{% endif %}</div>
+<div class="stat-value">{% if settings.heleket_merchant_id and settings.heleket_api_key and settings.heleket_merchant_id|length > 5 %}✅{% else %}❌{% endif %}</div>
 </div>
 </div>
 <form action="{{ url_for('payments_page') }}" method="post">
