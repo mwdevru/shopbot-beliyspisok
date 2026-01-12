@@ -172,6 +172,7 @@ def get_all_settings() -> Dict[str, Any]:
     for row in cursor.fetchall():
         result[row['key']] = row['value'] or ''
     conn.execute("COMMIT")
+    logger.info(f"get_all_settings returned: {result}")
     return result
 
 
