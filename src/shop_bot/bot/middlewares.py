@@ -16,7 +16,7 @@ class BanMiddleware(BaseMiddleware):
             return await handler(event, data)
 
         user_data = get_user(user.id)
-        if user_data and user_data.get('is_banned'):
+        if user_data and user_data.get('is_banned') == 1:
             ban_message = "Вы заблокированы и не можете использовать этого бота."
             if isinstance(event, CallbackQuery):
                 await event.answer(ban_message, show_alert=True)
