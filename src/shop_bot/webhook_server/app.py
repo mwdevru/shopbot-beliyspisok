@@ -674,20 +674,24 @@ def create_webhook_app(bot_controller_instance):
     @flask_app.route('/api/check-update')
     @login_required
     def check_update_api():
+        def parse_version(v):
+            try:
+                parts = v.replace('v', '').split('.')
+                return tuple(int(p) for p in parts[:3])
+            except:
+                return (0, 0, 0)
+        
         try:
             import urllib.request
+            import urllib.error
             url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
-            req = urllib.request.Request(url, headers={'User-Agent': 'ShopBot'})
-            with urllib.request.urlopen(req, timeout=5) as response:
+            req = urllib.request.Request(url, headers={'User-Agent': 'ShopBot', 'Accept': 'application/vnd.github.v3+json'})
+            with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode())
                 latest_version = data.get('tag_name', '').lstrip('v')
-                changelog = data.get('body', '')
                 
-                def parse_version(v):
-                    try:
-                        return tuple(map(int, v.split('.')))
-                    except:
-                        return (0, 0, 0)
+                if not latest_version:
+                    return jsonify({'current': CURRENT_VERSION, 'latest': CURRENT_VERSION, 'has_update': False})
                 
                 has_update = parse_version(latest_version) > parse_version(CURRENT_VERSION)
                 
@@ -695,10 +699,15 @@ def create_webhook_app(bot_controller_instance):
                     'current': CURRENT_VERSION,
                     'latest': latest_version,
                     'has_update': has_update,
-                    'changelog': changelog,
-                    'url': data.get('html_url', '')
+                    'changelog': data.get('body', ''),
+                    'url': data.get('html_url', f'https://github.com/{GITHUB_REPO}/releases')
                 })
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return jsonify({'current': CURRENT_VERSION, 'latest': CURRENT_VERSION, 'has_update': False})
+            return jsonify({'error': str(e), 'current': CURRENT_VERSION, 'has_update': False})
         except Exception as e:
+            logger.error(f"Check update error: {e}")
             return jsonify({'error': str(e), 'current': CURRENT_VERSION, 'has_update': False})
 
     @flask_app.route('/api/changelog')
