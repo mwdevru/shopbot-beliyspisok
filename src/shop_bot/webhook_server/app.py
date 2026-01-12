@@ -4,6 +4,7 @@ import asyncio
 import json
 import hashlib  
 import base64
+import subprocess
 from hmac import compare_digest
 from datetime import datetime, timedelta
 from functools import wraps
@@ -12,6 +13,9 @@ from flask import Flask, request, render_template, redirect, url_for, flash, ses
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+CURRENT_VERSION = "1.4.0"
+GITHUB_REPO = "mwdevru/shopbot-beliyspisok"
 
 from shop_bot.modules import mwshark_api
 from shop_bot.bot import handlers
@@ -23,7 +27,7 @@ from shop_bot.data_manager.database import (
     ban_user, unban_user, delete_user_keys, get_setting, find_and_complete_ton_transaction,
     get_user, update_key_expiry_days, set_key_expiry_date, get_key_by_id, add_new_key,
     search_users, get_users_with_active_keys, get_users_without_keys, get_banned_users_count,
-    get_active_keys_count, get_expired_keys_count, get_transactions_stats
+    get_active_keys_count, get_expired_keys_count, get_transactions_stats, delete_key_by_id
 )
 
 _bot_controller = None
@@ -50,7 +54,11 @@ def create_webhook_app(bot_controller_instance):
 
     @flask_app.context_processor
     def inject_globals():
-        return {'current_year': datetime.utcnow().year, 'now': datetime.now().isoformat()}
+        return {
+            'current_year': datetime.utcnow().year,
+            'now': datetime.now().isoformat(),
+            'app_version': CURRENT_VERSION
+        }
 
     def login_required(f):
         @wraps(f)
@@ -224,7 +232,7 @@ def create_webhook_app(bot_controller_instance):
         if not api_key:
             delete_user_keys(user_id)
             flash(f"Ключи пользователя {user_id} удалены (локально).", 'success')
-            return redirect(url_for('users_page'))
+            return redirect(url_for('user_detail_page', user_id=user_id))
         
         try:
             loop = current_app.config.get('EVENT_LOOP')
@@ -254,7 +262,36 @@ def create_webhook_app(bot_controller_instance):
             delete_user_keys(user_id)
             flash(f"Ключи удалены локально. Ошибка API: {e}", 'warning')
         
-        return redirect(url_for('users_page'))
+        return redirect(url_for('user_detail_page', user_id=user_id))
+
+    @flask_app.route('/users/revoke/<int:user_id>/<int:key_id>', methods=['POST'])
+    @login_required
+    def revoke_single_key_route(user_id, key_id):
+        key_data = get_key_by_id(key_id)
+        if not key_data or key_data['user_id'] != user_id:
+            flash('Ключ не найден.', 'danger')
+            return redirect(url_for('user_detail_page', user_id=user_id))
+        
+        api_key = get_setting("mwshark_api_key")
+        
+        remaining_keys = [k for k in get_user_keys(user_id) if k['key_id'] != key_id]
+        
+        if api_key and not remaining_keys:
+            try:
+                loop = current_app.config.get('EVENT_LOOP')
+                if loop and loop.is_running():
+                    future = asyncio.run_coroutine_threadsafe(
+                        mwshark_api.revoke_subscription_for_user(api_key, user_id), loop
+                    )
+                    result = future.result(timeout=10)
+                    if result.get('success'):
+                        flash(f"Подписка отозвана через API.", 'success')
+            except Exception as e:
+                logger.error(f"Revoke single key API error: {e}")
+        
+        delete_key_by_id(key_id)
+        flash(f"Ключ #{key_id} удалён.", 'success')
+        return redirect(url_for('user_detail_page', user_id=user_id))
 
 
     @flask_app.route('/users/modify-days/<int:user_id>', methods=['POST'])
@@ -628,5 +665,67 @@ def create_webhook_app(bot_controller_instance):
         except Exception as e:
             logger.error(f"TON webhook error: {e}", exc_info=True)
             return 'Error', 500
+
+    @flask_app.route('/api/check-update')
+    @login_required
+    def check_update_api():
+        try:
+            import urllib.request
+            url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+            req = urllib.request.Request(url, headers={'User-Agent': 'ShopBot'})
+            with urllib.request.urlopen(req, timeout=5) as response:
+                data = json.loads(response.read().decode())
+                latest_version = data.get('tag_name', '').lstrip('v')
+                changelog = data.get('body', '')
+                
+                def parse_version(v):
+                    return tuple(map(int, v.split('.')))
+                
+                has_update = False
+                try:
+                    has_update = parse_version(latest_version) > parse_version(CURRENT_VERSION)
+                except:
+                    pass
+                
+                return jsonify({
+                    'current': CURRENT_VERSION,
+                    'latest': latest_version,
+                    'has_update': has_update,
+                    'changelog': changelog,
+                    'url': data.get('html_url', '')
+                })
+        except Exception as e:
+            logger.error(f"Check update error: {e}")
+            return jsonify({'error': str(e), 'current': CURRENT_VERSION}), 500
+
+    @flask_app.route('/api/do-update', methods=['POST'])
+    @login_required
+    def do_update_api():
+        try:
+            result = subprocess.run(
+                ['git', 'pull', 'origin', 'main'],
+                cwd='/app',
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
+            
+            if result.returncode == 0:
+                return jsonify({
+                    'success': True,
+                    'message': 'Обновление загружено. Перезапустите контейнер.',
+                    'output': result.stdout
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'message': 'Ошибка git pull',
+                    'error': result.stderr
+                }), 500
+        except subprocess.TimeoutExpired:
+            return jsonify({'success': False, 'message': 'Таймаут операции'}), 500
+        except Exception as e:
+            logger.error(f"Update error: {e}")
+            return jsonify({'success': False, 'message': str(e)}), 500
 
     return flask_app

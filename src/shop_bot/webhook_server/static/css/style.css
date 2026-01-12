@@ -70,6 +70,11 @@ th{font-weight:600;color:var(--text-muted);text-transform:uppercase;font-size:.7
 .key-card.key-active{border-left-color:var(--success)}
 .key-card.key-expired{border-left-color:var(--danger)}
 .clickable-row{cursor:pointer}
+.update-banner{display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(34,197,94,.15);border:1px solid var(--success);border-radius:8px;font-size:.8rem}
+.update-modal{position:fixed;inset:0;background:rgba(0,0,0,.8);display:flex;align-items:center;justify-content:center;z-index:200}
+.update-modal-content{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:24px;max-width:500px;width:90%}
+.update-modal h3{margin:0 0 16px}
+.update-modal pre{background:var(--bg-input);padding:12px;border-radius:8px;font-size:.8rem;max-height:200px;overflow:auto;margin:16px 0}
 .badge{display:inline-flex;align-items:center;padding:4px 10px;border-radius:20px;font-size:.75rem;font-weight:500}
 .badge-success{background:rgba(34,197,94,.15);color:var(--success)}
 .badge-danger{background:rgba(239,68,68,.15);color:var(--danger)}

@@ -69,6 +69,12 @@
 </div>
 </div>
 <div class="header-right">
+<div id="updateBanner" style="display:none" class="update-banner">
+<span>🆕 Доступно обновление <strong id="newVersion"></strong></span>
+<button onclick="doUpdate()" class="btn btn-success btn-xs">Обновить</button>
+<button onclick="hideUpdate()" class="btn btn-ghost btn-xs">×</button>
+</div>
+<span style="font-size:.75rem;color:var(--text-muted)">v{{ app_version }}</span>
 <form action="{{ url_for('logout_page') }}" method="post"><button type="submit" class="btn btn-ghost btn-sm">Выйти</button></form>
 </div>
 </header>

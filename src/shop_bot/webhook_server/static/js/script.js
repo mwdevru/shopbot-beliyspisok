@@ -56,4 +56,29 @@ row.addEventListener('click',function(e){
 if(e.target.tagName!=='A'&&e.target.tagName!=='BUTTON'){window.location=this.dataset.href;}
 });
 });
+checkForUpdates();
 });
+function checkForUpdates(){
+fetch('/api/check-update').then(r=>r.json()).then(data=>{
+if(data.has_update){
+document.getElementById('updateBanner').style.display='flex';
+document.getElementById('newVersion').textContent='v'+data.latest;
+window.updateData=data;
+}
+}).catch(()=>{});
+}
+function hideUpdate(){document.getElementById('updateBanner').style.display='none';}
+function doUpdate(){
+if(!confirm('Обновить до версии '+window.updateData.latest+'?\n\nПосле обновления потребуется перезапуск.'))return;
+const banner=document.getElementById('updateBanner');
+banner.innerHTML='<span>⏳ Обновление...</span>';
+fetch('/api/do-update',{method:'POST'}).then(r=>r.json()).then(data=>{
+if(data.success){
+banner.innerHTML='<span>✅ '+data.message+'</span><button onclick="location.reload()" class="btn btn-primary btn-xs">Перезагрузить</button>';
+}else{
+banner.innerHTML='<span>❌ '+data.message+'</span><button onclick="hideUpdate()" class="btn btn-ghost btn-xs">×</button>';
+}
+}).catch(e=>{
+banner.innerHTML='<span>❌ Ошибка: '+e+'</span>';
+});
+}
