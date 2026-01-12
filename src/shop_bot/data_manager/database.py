@@ -3,28 +3,36 @@ import aiosqlite
 import json
 import logging
 import asyncio
+import os
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
 logger = logging.getLogger(__name__)
 
-PROJECT_ROOT = Path("/app/project")
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", "/app/project"))
 DB_FILE = PROJECT_ROOT / "data.db"
 OLD_DB_FILE = PROJECT_ROOT / "users.db"
 
 _sync_conn: Optional[sqlite3.Connection] = None
+_db_lock = asyncio.Lock() if asyncio.get_event_loop_policy() else None
 
 def get_sync_conn() -> sqlite3.Connection:
     global _sync_conn
     if _sync_conn is None:
-        _sync_conn = sqlite3.connect(DB_FILE, check_same_thread=False)
+        PROJECT_ROOT.mkdir(parents=True, exist_ok=True)
+        _sync_conn = sqlite3.connect(str(DB_FILE), check_same_thread=False, timeout=30)
         _sync_conn.row_factory = sqlite3.Row
+        _sync_conn.execute("PRAGMA journal_mode=WAL")
+        _sync_conn.execute("PRAGMA synchronous=NORMAL")
     return _sync_conn
 
 async def get_async_conn() -> aiosqlite.Connection:
-    conn = await aiosqlite.connect(DB_FILE)
+    PROJECT_ROOT.mkdir(parents=True, exist_ok=True)
+    conn = await aiosqlite.connect(str(DB_FILE), timeout=30)
     conn.row_factory = aiosqlite.Row
+    await conn.execute("PRAGMA journal_mode=WAL")
+    await conn.execute("PRAGMA synchronous=NORMAL")
     return conn
 
 def initialize_db():
@@ -105,7 +113,7 @@ def update_setting(key: str, value: str):
     conn = get_sync_conn()
     conn.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES (?, ?)", (key, value))
     conn.commit()
-    conn.commit()
+    logger.debug(f"Setting updated: {key}")
 
 def get_user(telegram_id: int) -> Optional[Dict]:
     cursor = get_sync_conn().cursor()

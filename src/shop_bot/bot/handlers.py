@@ -854,8 +854,8 @@ def get_user_router() -> Router:
         plan = get_plan_by_id(data.get('plan_id'))
 
         cryptobot_token = get_setting('cryptobot_token')
-        if not cryptobot_token:
-            await callback.message.edit_text("❌ Криптооплата недоступна.")
+        if not cryptobot_token or len(cryptobot_token) < 10:
+            await callback.message.edit_text("❌ Криптооплата недоступна. Токен не настроен.")
             await state.clear()
             return
 
@@ -902,7 +902,7 @@ def get_user_router() -> Router:
 
         except Exception as e:
             logger.error(f"CryptoBot error for {user_id}: {e}", exc_info=True)
-            await callback.message.edit_text("❌ Ошибка создания счета.")
+            await callback.message.edit_text("❌ Ошибка создания счета. Проверьте настройки CryptoBot.")
             await state.clear()
 
     @user_router.callback_query(PaymentProcess.waiting_for_payment_method, F.data == "pay_heleket")

@@ -104,29 +104,29 @@ def create_skip_email_keyboard() -> InlineKeyboardMarkup:
 def create_payment_method_keyboard(action: str, key_id: int) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
 
-    yookassa_shop_id = get_setting("yookassa_shop_id") or ""
-    yookassa_secret_key = get_setting("yookassa_secret_key") or ""
-    if len(yookassa_shop_id) > 5 and len(yookassa_secret_key) > 5 and yookassa_shop_id != "admin":
+    yookassa_shop_id = get_setting("yookassa_shop_id")
+    yookassa_secret_key = get_setting("yookassa_secret_key")
+    if yookassa_shop_id and yookassa_secret_key and len(yookassa_shop_id) > 5 and len(yookassa_secret_key) > 5 and yookassa_shop_id != "admin":
         text = "🏦 СБП / Банковская карта" if get_setting("sbp_enabled") == "true" else "🏦 Банковская карта"
         builder.button(text=text, callback_data="pay_yookassa")
 
-    platega_merchant_id = get_setting("platega_merchant_id") or ""
-    platega_secret_key = get_setting("platega_secret_key") or ""
-    if platega_merchant_id and platega_secret_key:
+    platega_merchant_id = get_setting("platega_merchant_id")
+    platega_secret_key = get_setting("platega_secret_key")
+    if platega_merchant_id and platega_secret_key and len(platega_merchant_id) > 3 and len(platega_secret_key) > 3:
         builder.button(text="💳 Platega (Карта/СБП)", callback_data="pay_platega")
 
-    cryptobot_token = get_setting("cryptobot_token") or ""
-    if cryptobot_token:
+    cryptobot_token = get_setting("cryptobot_token")
+    if cryptobot_token and len(cryptobot_token) > 10:
         builder.button(text="🤖 CryptoBot", callback_data="pay_cryptobot")
 
-    heleket_merchant_id = get_setting("heleket_merchant_id") or ""
-    heleket_api_key = get_setting("heleket_api_key") or ""
-    if heleket_merchant_id and heleket_api_key:
+    heleket_merchant_id = get_setting("heleket_merchant_id")
+    heleket_api_key = get_setting("heleket_api_key")
+    if heleket_merchant_id and heleket_api_key and len(heleket_merchant_id) > 3 and len(heleket_api_key) > 3:
         builder.button(text="💎 Heleket (Крипто)", callback_data="pay_heleket")
 
-    ton_wallet = get_setting("ton_wallet_address") or ""
-    tonapi_key = get_setting("tonapi_key") or ""
-    if ton_wallet and tonapi_key:
+    ton_wallet = get_setting("ton_wallet_address")
+    tonapi_key = get_setting("tonapi_key")
+    if ton_wallet and tonapi_key and len(ton_wallet) > 10 and len(tonapi_key) > 10:
         builder.button(text="🪙 TON Connect", callback_data="pay_tonconnect")
 
     builder.button(text="⬅️ Назад", callback_data="back_to_email_prompt")
