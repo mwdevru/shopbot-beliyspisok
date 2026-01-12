@@ -53,6 +53,21 @@ async def get_async_conn() -> aiosqlite.Connection:
     return conn
 
 
+def cleanup_duplicate_settings():
+    conn = get_sync_conn()
+    cursor = conn.cursor()
+    cursor.execute("SELECT DISTINCT key FROM bot_settings")
+    keys = [row[0] for row in cursor.fetchall()]
+    for key in keys:
+        cursor.execute("SELECT value FROM bot_settings WHERE key = ? AND value IS NOT NULL AND value != '' ORDER BY rowid DESC LIMIT 1", (key,))
+        row = cursor.fetchone()
+        val = row[0] if row else ""
+        conn.execute("DELETE FROM bot_settings WHERE key = ?", (key,))
+        conn.execute("INSERT INTO bot_settings (key, value) VALUES (?, ?)", (key, val))
+    conn.commit()
+    logger.info("Duplicate settings cleaned up")
+
+
 def initialize_db():
     migrate_from_old_db()
     conn = get_sync_conn()
@@ -136,6 +151,7 @@ def initialize_db():
         cursor.execute("INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)", (key, value))
     
     conn.commit()
+    cleanup_duplicate_settings()
     logger.info(f"Database initialized at {DB_FILE}")
 
 
@@ -179,7 +195,8 @@ def get_all_settings() -> Dict[str, Any]:
 def update_setting(key: str, value: str):
     conn = get_sync_conn()
     val = value if value else ""
-    conn.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES (?, ?)", (key, val))
+    conn.execute("DELETE FROM bot_settings WHERE key = ?", (key,))
+    conn.execute("INSERT INTO bot_settings (key, value) VALUES (?, ?)", (key, val))
     conn.commit()
 
 
