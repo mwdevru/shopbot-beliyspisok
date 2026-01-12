@@ -38,6 +38,12 @@
 </div>
 </div>
 <div>
+<div class="card" style="margin-bottom:24px">
+<div class="card-title">🖥 Информация о сервере</div>
+<div id="serverInfo" style="font-size:.875rem">
+<div style="text-align:center;padding:20px;color:var(--text-muted)">Загрузка...</div>
+</div>
+</div>
 <div class="card">
 <div class="card-title">Недавние транзакции</div>
 {% if transactions %}
@@ -73,5 +79,41 @@
 </div>
 </div>
 </div>
-<script>const CHART_DATA = {{ chart_data | tojson }};</script>
+<script>
+var CHART_DATA = {{ chart_data | tojson }};
+function getColor(val) {
+    if (val > 80) return "var(--danger)";
+    if (val > 50) return "var(--warning)";
+    return "var(--success)";
+}
+function renderBar(color, percent) {
+    return "<div style='background:var(--bg);border-radius:4px;height:6px;overflow:hidden'>" +
+           "<div style='background:" + color + ";height:100%;width:" + percent + "%;transition:width .3s'></div></div>";
+}
+function loadServerInfo() {
+    fetch("/api/server-info").then(function(r) { return r.json(); }).then(function(d) {
+        if (!d.success) {
+            document.getElementById("serverInfo").innerHTML = "<p style='color:var(--danger)'>Ошибка загрузки</p>";
+            return;
+        }
+        var cpuC = getColor(d.cpu_percent);
+        var memC = getColor(d.memory_percent);
+        var diskC = getColor(d.disk_percent);
+        var html = "<div style='display:grid;gap:12px'>";
+        html += "<div style='display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)'><span style='color:var(--text-muted)'>🏷 Хост</span><span style='font-weight:500'>" + d.hostname + "</span></div>";
+        html += "<div style='display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)'><span style='color:var(--text-muted)'>💻 ОС</span><span>" + d.os + "</span></div>";
+        html += "<div style='display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)'><span style='color:var(--text-muted)'>🐍 Python</span><span>" + d.python + "</span></div>";
+        html += "<div style='display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)'><span style='color:var(--text-muted)'>⏱ Uptime</span><span>" + d.uptime + "</span></div>";
+        html += "<div style='padding:8px 0;border-bottom:1px solid var(--border)'><div style='display:flex;justify-content:space-between;margin-bottom:6px'><span style='color:var(--text-muted)'>⚡ CPU (" + d.cpu_count + " ядер)</span><span style='color:" + cpuC + ";font-weight:500'>" + d.cpu_percent + "%</span></div>" + renderBar(cpuC, d.cpu_percent) + "</div>";
+        html += "<div style='padding:8px 0;border-bottom:1px solid var(--border)'><div style='display:flex;justify-content:space-between;margin-bottom:6px'><span style='color:var(--text-muted)'>🧠 RAM</span><span style='color:" + memC + ";font-weight:500'>" + d.memory_used + " / " + d.memory_total + " GB (" + d.memory_percent + "%)</span></div>" + renderBar(memC, d.memory_percent) + "</div>";
+        html += "<div style='padding:8px 0'><div style='display:flex;justify-content:space-between;margin-bottom:6px'><span style='color:var(--text-muted)'>💾 Диск</span><span style='color:" + diskC + ";font-weight:500'>" + d.disk_used + " / " + d.disk_total + " GB (" + d.disk_percent + "%)</span></div>" + renderBar(diskC, d.disk_percent) + "</div>";
+        html += "</div>";
+        document.getElementById("serverInfo").innerHTML = html;
+    }).catch(function() {
+        document.getElementById("serverInfo").innerHTML = "<p style='color:var(--danger)'>Ошибка загрузки</p>";
+    });
+}
+loadServerInfo();
+setInterval(loadServerInfo, 10000);
+</script>
 {% endblock %}

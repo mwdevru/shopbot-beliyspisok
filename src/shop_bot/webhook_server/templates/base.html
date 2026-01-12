@@ -15,7 +15,7 @@
 <div class="app">
 <aside class="sidebar" id="sidebar">
 <button class="sidebar-close" id="sidebarClose"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
-<div class="sidebar-logo">🤖 ShopBot</div>
+<div class="sidebar-logo">⚡ MW LLC</div>
 <nav class="sidebar-nav">
 <a href="{{ url_for('dashboard_page') }}" class="nav-item {% if request.endpoint == 'dashboard_page' %}active{% endif %}">
 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
@@ -98,6 +98,9 @@
 {% endif %}
 {% endwith %}
 <main class="content">{% block content %}{% endblock %}</main>
+<footer style="text-align:center;padding:20px;font-size:.75rem;color:var(--text-muted);border-top:1px solid var(--border);margin-top:auto">
+© 2026 MW LLC. All rights reserved.
+</footer>
 </div>
 </div>
 <script src="{{ url_for('static', filename='js/script.js') }}"></script>

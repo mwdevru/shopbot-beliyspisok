@@ -5,6 +5,8 @@ import json
 import hashlib  
 import base64
 import subprocess
+import platform
+import psutil
 from hmac import compare_digest
 from datetime import datetime, timedelta
 from functools import wraps
@@ -14,7 +16,7 @@ from flask import Flask, request, render_template, redirect, url_for, flash, ses
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-CURRENT_VERSION = "1.4.6"
+CURRENT_VERSION = "1.4.7"
 GITHUB_REPO = "mwdevru/shopbot-beliyspisok"
 
 from shop_bot.modules import mwshark_api
@@ -788,6 +790,36 @@ def create_webhook_app(bot_controller_instance):
             with urllib.request.urlopen(req, timeout=5) as response:
                 content = response.read().decode('utf-8')
                 return jsonify({'success': True, 'content': content})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)})
+
+    @flask_app.route('/api/server-info')
+    @login_required
+    def server_info_api():
+        try:
+            cpu_percent = psutil.cpu_percent(interval=0.5)
+            memory = psutil.virtual_memory()
+            disk = psutil.disk_usage('/')
+            boot_time = datetime.fromtimestamp(psutil.boot_time())
+            uptime = datetime.now() - boot_time
+            
+            uptime_str = f"{uptime.days}д {uptime.seconds // 3600}ч {(uptime.seconds % 3600) // 60}м"
+            
+            return jsonify({
+                'success': True,
+                'hostname': platform.node(),
+                'os': f"{platform.system()} {platform.release()}",
+                'python': platform.python_version(),
+                'cpu_percent': cpu_percent,
+                'cpu_count': psutil.cpu_count(),
+                'memory_total': round(memory.total / (1024**3), 2),
+                'memory_used': round(memory.used / (1024**3), 2),
+                'memory_percent': memory.percent,
+                'disk_total': round(disk.total / (1024**3), 2),
+                'disk_used': round(disk.used / (1024**3), 2),
+                'disk_percent': disk.percent,
+                'uptime': uptime_str
+            })
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)})
 
