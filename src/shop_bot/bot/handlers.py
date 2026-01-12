@@ -877,6 +877,13 @@ def get_user_router() -> Router:
 
         try:
             crypto = CryptoPay(cryptobot_token)
+            
+            metadata = {
+                "user_id": user_id, "days": days, "price": float(price_rub),
+                "action": data.get('action'), "key_id": data.get('key_id'),
+                "plan_id": data.get('plan_id'),
+                "customer_email": data.get('customer_email'), "payment_method": "CryptoBot"
+            }
             payload_data = f"{user_id}:{days}:{float(price_rub)}:{data.get('action')}:{data.get('key_id')}:{data.get('plan_id')}:{data.get('customer_email')}:CryptoBot"
 
             invoice = await crypto.create_invoice(
@@ -886,6 +893,9 @@ def get_user_router() -> Router:
 
             if not invoice or not invoice.pay_url:
                 raise Exception("Invoice creation failed")
+
+            from shop_bot.data_manager.database import create_pending_cryptobot_invoice
+            create_pending_cryptobot_invoice(str(invoice.invoice_id), json.dumps(metadata))
 
             await callback.message.edit_text("Нажмите для оплаты:", reply_markup=keyboards.create_payment_keyboard(invoice.pay_url))
             await state.clear()

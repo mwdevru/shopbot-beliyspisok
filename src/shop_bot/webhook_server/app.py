@@ -14,7 +14,7 @@ from flask import Flask, request, render_template, redirect, url_for, flash, ses
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-CURRENT_VERSION = "1.4.3"
+CURRENT_VERSION = "1.4.4"
 GITHUB_REPO = "mwdevru/shopbot-beliyspisok"
 
 from shop_bot.modules import mwshark_api
@@ -200,7 +200,7 @@ def create_webhook_app(bot_controller_instance):
     def payments_page():
         if request.method == 'POST':
             payment_keys = [
-                'yookassa_shop_id', 'yookassa_secret_key', 'receipt_email', 'sbp_enabled',
+                'yookassa_shop_id', 'yookassa_secret_key', 'receipt_email',
                 'cryptobot_token', 'heleket_merchant_id', 'heleket_api_key', 'domain',
                 'platega_merchant_id', 'platega_secret_key', 'platega_payment_method'
             ]
@@ -209,9 +209,8 @@ def create_webhook_app(bot_controller_instance):
                 value = values[-1] if values else 'false'
                 update_setting(checkbox_key, 'true' if value == 'true' else 'false')
             for key in payment_keys:
-                if key == 'sbp_enabled':
-                    continue
-                update_setting(key, request.form.get(key, ''))
+                if key in request.form:
+                    update_setting(key, request.form.get(key, ''))
             flash('Настройки платежей сохранены!', 'success')
             return redirect(url_for('payments_page'))
         return render_template('payments.html', settings=get_all_settings(), **get_common_template_data())

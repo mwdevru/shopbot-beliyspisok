@@ -53,6 +53,9 @@ def initialize_db():
     cursor.execute('''CREATE TABLE IF NOT EXISTS platega_pending (
         transaction_id TEXT PRIMARY KEY, metadata TEXT NOT NULL,
         created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS cryptobot_pending (
+        invoice_id TEXT PRIMARY KEY, metadata TEXT NOT NULL,
+        created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     defaults = {
         "panel_login": "admin", "panel_password": "admin", "about_text": None,
         "terms_url": None, "privacy_url": None, "support_user": None, "support_text": None,
@@ -314,6 +317,29 @@ def get_all_pending_platega_transactions() -> List[Dict]:
     cursor = get_sync_conn().cursor()
     cursor.execute("SELECT transaction_id, metadata FROM platega_pending")
     return [{"transaction_id": row['transaction_id'], "metadata": json.loads(row['metadata'])} for row in cursor.fetchall()]
+
+def create_pending_cryptobot_invoice(invoice_id: str, metadata: str):
+    conn = get_sync_conn()
+    conn.execute("INSERT OR REPLACE INTO cryptobot_pending (invoice_id, metadata) VALUES (?, ?)", (invoice_id, metadata))
+    conn.commit()
+
+def get_pending_cryptobot_invoice(invoice_id: str) -> Optional[Dict]:
+    cursor = get_sync_conn().cursor()
+    cursor.execute("SELECT metadata FROM cryptobot_pending WHERE invoice_id = ?", (invoice_id,))
+    row = cursor.fetchone()
+    if row:
+        return json.loads(row['metadata'])
+    return None
+
+def delete_pending_cryptobot_invoice(invoice_id: str):
+    conn = get_sync_conn()
+    conn.execute("DELETE FROM cryptobot_pending WHERE invoice_id = ?", (invoice_id,))
+    conn.commit()
+
+def get_all_pending_cryptobot_invoices() -> List[Dict]:
+    cursor = get_sync_conn().cursor()
+    cursor.execute("SELECT invoice_id, metadata FROM cryptobot_pending")
+    return [{"invoice_id": row['invoice_id'], "metadata": json.loads(row['metadata'])} for row in cursor.fetchall()]
 
 def get_paginated_transactions(page: int = 1, per_page: int = 15) -> tuple:
     offset = (page - 1) * per_page

@@ -133,6 +133,41 @@ async def check_pending_platega_payments(bot: Bot):
             logger.error(f"Platega check error for {tx['transaction_id']}: {e}")
 
 
+async def check_pending_cryptobot_payments(bot: Bot):
+    from shop_bot.bot.handlers import process_successful_payment
+    from shop_bot.data_manager.database import get_all_pending_cryptobot_invoices, delete_pending_cryptobot_invoice, get_setting
+    from aiosend import CryptoPay
+
+    cryptobot_token = get_setting('cryptobot_token')
+    if not cryptobot_token:
+        return
+
+    pending = get_all_pending_cryptobot_invoices()
+    if not pending:
+        return
+
+    logger.info(f"Scheduler: Checking {len(pending)} pending CryptoBot invoices...")
+
+    try:
+        crypto = CryptoPay(cryptobot_token)
+        for inv in pending:
+            try:
+                invoices = await crypto.get_invoices(invoice_ids=[int(inv['invoice_id'])])
+                if invoices and len(invoices) > 0:
+                    invoice = invoices[0]
+                    if invoice.status == 'paid':
+                        delete_pending_cryptobot_invoice(inv['invoice_id'])
+                        await process_successful_payment(bot, inv['metadata'])
+                        logger.info(f"CryptoBot invoice paid via polling: {inv['invoice_id']}")
+                    elif invoice.status in ['expired', 'cancelled']:
+                        delete_pending_cryptobot_invoice(inv['invoice_id'])
+                        logger.info(f"CryptoBot invoice {invoice.status}: {inv['invoice_id']}")
+            except Exception as e:
+                logger.error(f"CryptoBot check error for {inv['invoice_id']}: {e}")
+    except Exception as e:
+        logger.error(f"CryptoBot polling error: {e}")
+
+
 async def periodic_subscription_check(bot_controller: BotController):
     logger.info("Scheduler started.")
     await asyncio.sleep(10)
@@ -144,6 +179,7 @@ async def periodic_subscription_check(bot_controller: BotController):
                 if bot:
                     await check_expiring_subscriptions(bot)
                     await check_pending_platega_payments(bot)
+                    await check_pending_cryptobot_payments(bot)
                 else:
                     logger.warning("Scheduler: Bot instance not available.")
             else:
