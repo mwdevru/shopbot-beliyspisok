@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Тарифы{% endblock %}
+{% block content %}
+<h1 class="page-title">Тарифы</h1>
+<div class="stats-grid" style="margin-bottom:24px">
+<div class="stat-card">
+<div class="stat-label">Всего тарифов</div>
+<div class="stat-value">{{ plans|length }}</div>
+</div>
+<div class="stat-card">
+<div class="stat-label">Мин. цена</div>
+<div class="stat-value">{% if plans %}{{ (plans|map(attribute='price')|min or 0)|float|round(0)|int }}{% else %}0{% endif %} <small>₽</small></div>
+</div>
+<div class="stat-card">
+<div class="stat-label">Макс. цена</div>
+<div class="stat-value">{% if plans %}{{ (plans|map(attribute='price')|max or 0)|float|round(0)|int }}{% else %}0{% endif %} <small>₽</small></div>
+</div>
+</div>
+<div class="grid-2">
+<div class="card">
+<div class="card-title">Добавить тариф</div>
+<form action="{{ url_for('add_plan_route') }}" method="post">
+<div class="form-group">
+<label class="form-label">Название</label>
+<input type="text" name="plan_name" class="form-input" placeholder="1 месяц" required>
+</div>
+<div class="form-group">
+<label class="form-label">Дней (1-365)</label>
+<input type="number" name="days" class="form-input" min="1" max="365" placeholder="30" required>
+</div>
+<div class="form-group">
+<label class="form-label">Цена (₽)</label>
+<input type="number" step="0.01" name="price" class="form-input" placeholder="100" required>
+</div>
+<button type="submit" class="btn btn-primary" style="width:100%">Добавить тариф</button>
+</form>
+</div>
+<div class="card">
+<div class="card-title">Текущие тарифы</div>
+{% if plans %}
+<div class="table-wrap">
+<table>
+<thead>
+<tr><th>Название</th><th>Дней</th><th>Цена</th><th></th></tr>
+</thead>
+<tbody>
+{% for plan in plans %}
+<tr>
+<td><strong>{{ plan.plan_name }}</strong></td>
+<td>{{ plan.days }}</td>
+<td>{{ (plan.price or 0)|float|round(0)|int }} ₽</td>
+<td style="text-align:right">
+<form action="{{ url_for('delete_plan_route', plan_id=plan.plan_id) }}" method="post" style="display:inline">
+<button type="submit" class="btn btn-danger btn-xs" onclick="return confirm('Удалить тариф?')">Удалить</button>
+</form>
+</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+{% else %}
+<div style="text-align:center;padding:40px 20px;color:var(--text-muted)">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:48px;height:48px;margin-bottom:12px;opacity:.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+<p>Тарифы не добавлены</p>
+<p style="font-size:.85rem">Создайте первый тариф слева</p>
+</div>
+{% endif %}
+</div>
+</div>
+{% endblock %}

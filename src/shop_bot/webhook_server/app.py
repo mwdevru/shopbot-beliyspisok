@@ -14,7 +14,7 @@ from flask import Flask, request, render_template, redirect, url_for, flash, ses
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-CURRENT_VERSION = "1.4.0"
+CURRENT_VERSION = "1.4.1"
 GITHUB_REPO = "mwdevru/shopbot-beliyspisok"
 
 from shop_bot.modules import mwshark_api
@@ -181,7 +181,12 @@ def create_webhook_app(bot_controller_instance):
             flash('Настройки успешно сохранены!', 'success')
             return redirect(url_for('settings_page'))
 
-        return render_template('settings.html', settings=get_all_settings(), plans=get_all_plans(), **get_common_template_data())
+        return render_template('settings.html', settings=get_all_settings(), **get_common_template_data())
+
+    @flask_app.route('/plans')
+    @login_required
+    def plans_page():
+        return render_template('plans.html', plans=get_all_plans(), **get_common_template_data())
 
     @flask_app.route('/start-shop-bot', methods=['POST'])
     @login_required
@@ -383,14 +388,14 @@ def create_webhook_app(bot_controller_instance):
             price=float(request.form['price'])
         )
         flash(f"Тариф '{request.form['plan_name']}' добавлен.", 'success')
-        return redirect(url_for('settings_page'))
+        return redirect(url_for('plans_page'))
 
     @flask_app.route('/delete-plan/<int:plan_id>', methods=['POST'])
     @login_required
     def delete_plan_route(plan_id):
         delete_plan(plan_id)
         flash("Тариф удален.", 'success')
-        return redirect(url_for('settings_page'))
+        return redirect(url_for('plans_page'))
 
     @flask_app.route('/api-stats')
     @login_required

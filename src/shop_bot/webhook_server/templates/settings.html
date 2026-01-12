@@ -2,43 +2,6 @@
 {% block title %}Настройки{% endblock %}
 {% block content %}
 <h1 class="page-title">Настройки</h1>
-<div class="grid-2">
-<div>
-<div class="card" style="margin-bottom:24px">
-<div class="card-title">Добавить тариф</div>
-<form action="{{ url_for('add_plan_route') }}" method="post">
-<div class="form-group">
-<label class="form-label">Название</label>
-<input type="text" name="plan_name" class="form-input" placeholder="1 месяц" required>
-</div>
-<div class="form-group">
-<label class="form-label">Дней (1-365)</label>
-<input type="number" name="days" class="form-input" min="1" max="365" placeholder="30" required>
-</div>
-<div class="form-group">
-<label class="form-label">Цена (₽)</label>
-<input type="number" step="0.01" name="price" class="form-input" placeholder="100" required>
-</div>
-<button type="submit" class="btn btn-primary">Добавить</button>
-</form>
-</div>
-{% if plans %}
-<div class="card">
-<div class="card-title">Текущие тарифы</div>
-<ul class="plan-list">
-{% for plan in plans %}
-<li class="plan-item">
-<div class="plan-info"><strong>{{ plan.plan_name }}</strong> <span>{{ plan.days }} дн. — {{ (plan.price or 0)|float|round(0)|int }}₽</span></div>
-<form action="{{ url_for('delete_plan_route', plan_id=plan.plan_id) }}" method="post">
-<button type="submit" class="btn btn-danger btn-xs">×</button>
-</form>
-</li>
-{% endfor %}
-</ul>
-</div>
-{% endif %}
-</div>
-<div>
 <form action="{{ url_for('settings_page') }}" method="post">
 <div class="card" style="margin-bottom:24px">
 <div class="card-title">Панель</div>
@@ -241,6 +204,4 @@
 </div>
 <button type="submit" class="btn btn-primary" style="width:100%">Сохранить</button>
 </form>
-</div>
-</div>
 {% endblock %}
