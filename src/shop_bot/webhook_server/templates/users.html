@@ -55,7 +55,7 @@
 <span style="color:var(--text-muted)">—</span>
 {% endif %}
 </td>
-<td>{{ "%.0f"|format(user.total_spent or 0) }} ₽</td>
+<td>{{ (user.total_spent or 0)|float|round(0)|int }} ₽</td>
 <td>
 {% if user.is_banned %}<span class="badge badge-danger">Бан</span>
 {% else %}<span class="badge badge-success">Актив</span>{% endif %}

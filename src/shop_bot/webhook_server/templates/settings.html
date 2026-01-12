@@ -28,7 +28,7 @@
 <ul class="plan-list">
 {% for plan in plans %}
 <li class="plan-item">
-<div class="plan-info"><strong>{{ plan.plan_name }}</strong> <span>{{ plan.days }} дн. — {{ plan.price|round(0) }}₽</span></div>
+<div class="plan-info"><strong>{{ plan.plan_name }}</strong> <span>{{ plan.days }} дн. — {{ (plan.price or 0)|float|round(0)|int }}₽</span></div>
 <form action="{{ url_for('delete_plan_route', plan_id=plan.plan_id) }}" method="post">
 <button type="submit" class="btn btn-danger btn-xs">×</button>
 </form>

@@ -21,7 +21,7 @@
 </div>
 <div class="stat-card">
 <div class="stat-label">Сумма</div>
-<div class="stat-value">{{ "%.0f"|format(stats.total_amount) }} <small>₽</small></div>
+<div class="stat-value">{{ (stats.total_amount or 0)|float|round(0)|int }} <small>₽</small></div>
 </div>
 </div>
 <div class="card">
@@ -44,7 +44,7 @@
 <tr>
 <td><small>{{ tx.transaction_id }}</small></td>
 <td>{{ tx.username or 'N/A' }}<br><small style="color:var(--text-muted)">{{ tx.user_id }}</small></td>
-<td>{{ tx.amount_rub | round(2) }} ₽</td>
+<td>{{ (tx.amount_rub or 0)|float|round(2) }} ₽</td>
 <td><span class="badge badge-success">{{ tx.payment_method or 'N/A' }}</span></td>
 <td>{{ tx.status }}</td>
 <td>{{ tx.plan_name or 'N/A' }}</td>

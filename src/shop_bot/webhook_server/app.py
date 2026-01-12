@@ -679,13 +679,12 @@ def create_webhook_app(bot_controller_instance):
                 changelog = data.get('body', '')
                 
                 def parse_version(v):
-                    return tuple(map(int, v.split('.')))
+                    try:
+                        return tuple(map(int, v.split('.')))
+                    except:
+                        return (0, 0, 0)
                 
-                has_update = False
-                try:
-                    has_update = parse_version(latest_version) > parse_version(CURRENT_VERSION)
-                except:
-                    pass
+                has_update = parse_version(latest_version) > parse_version(CURRENT_VERSION)
                 
                 return jsonify({
                     'current': CURRENT_VERSION,
@@ -695,8 +694,7 @@ def create_webhook_app(bot_controller_instance):
                     'url': data.get('html_url', '')
                 })
         except Exception as e:
-            logger.error(f"Check update error: {e}")
-            return jsonify({'error': str(e), 'current': CURRENT_VERSION}), 500
+            return jsonify({'error': str(e), 'current': CURRENT_VERSION, 'has_update': False})
 
     @flask_app.route('/api/do-update', methods=['POST'])
     @login_required

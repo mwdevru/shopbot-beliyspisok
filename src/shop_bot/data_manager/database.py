@@ -76,35 +76,10 @@ def migrate_from_old_db():
         return
     logger.info(f"Migrating from {OLD_DB_FILE} to {DB_FILE}")
     try:
-        old_conn = sqlite3.connect(OLD_DB_FILE)
-        old_conn.row_factory = sqlite3.Row
-        new_conn = sqlite3.connect(DB_FILE)
-        new_conn.row_factory = sqlite3.Row
-        tables = ['users', 'vpn_keys', 'transactions', 'bot_settings', 'support_threads', 'plans']
-        for table in tables:
-            try:
-                old_cursor = old_conn.cursor()
-                old_cursor.execute(f"SELECT * FROM {table}")
-                rows = old_cursor.fetchall()
-                if not rows:
-                    continue
-                columns = [desc[0] for desc in old_cursor.description]
-                new_cursor = new_conn.cursor()
-                new_cursor.execute(f'''CREATE TABLE IF NOT EXISTS {table} ({", ".join(f"{c} TEXT" for c in columns)})''')
-                placeholders = ", ".join(["?" for _ in columns])
-                for row in rows:
-                    try:
-                        new_cursor.execute(f"INSERT OR IGNORE INTO {table} ({', '.join(columns)}) VALUES ({placeholders})", tuple(row))
-                    except:
-                        pass
-                new_conn.commit()
-                logger.info(f"Migrated {len(rows)} rows from {table}")
-            except Exception as e:
-                logger.warning(f"Skip table {table}: {e}")
-        old_conn.close()
-        new_conn.close()
+        import shutil
+        shutil.copy(OLD_DB_FILE, DB_FILE)
         OLD_DB_FILE.rename(OLD_DB_FILE.with_suffix('.db.bak'))
-        logger.info("Migration completed")
+        logger.info("Migration completed (copy method)")
     except Exception as e:
         logger.error(f"Migration error: {e}")
 

@@ -13,7 +13,7 @@
 </div>
 <div class="stat-card">
 <div class="stat-label">Потрачено</div>
-<div class="stat-value">{{ stats.total_spent | round(2) }} <small>₽</small></div>
+<div class="stat-value">{{ (stats.total_spent or 0)|float|round(2) }} <small>₽</small></div>
 </div>
 <div class="stat-card">
 <div class="stat-label">Тарифов</div>
@@ -22,7 +22,7 @@
 {% if api_balance and api_balance.success %}
 <div class="stat-card">
 <div class="stat-label">Баланс API</div>
-<div class="stat-value">{{ api_balance.balance | round(2) }} <small>₽</small></div>
+<div class="stat-value">{{ (api_balance.balance or 0)|float|round(2) }} <small>₽</small></div>
 </div>
 {% endif %}
 </div>
@@ -51,7 +51,7 @@
 <tr>
 <td>{{ tx.username or 'N/A' }}<br><small style="color:var(--text-muted)">{{ tx.user_id }}</small></td>
 <td>{{ tx.plan_name }}</td>
-<td>{{ tx.amount_rub | round(2) }} ₽</td>
+<td>{{ (tx.amount_rub or 0)|float|round(2) }} ₽</td>
 <td>{{ tx.created_date.split(' ')[0] }}</td>
 </tr>
 {% endfor %}

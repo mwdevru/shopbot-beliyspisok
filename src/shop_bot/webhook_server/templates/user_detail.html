@@ -25,7 +25,7 @@
 <div style="font-size:.75rem;color:var(--text-muted)">Ключей</div>
 </div>
 <div style="text-align:center">
-<div style="font-size:1.5rem;font-weight:600">{{ "%.0f"|format(user.total_spent or 0) }}₽</div>
+<div style="font-size:1.5rem;font-weight:600">{{ (user.total_spent or 0)|float|round(0)|int }}₽</div>
 <div style="font-size:.75rem;color:var(--text-muted)">Потрачено</div>
 </div>
 <div style="text-align:center">
@@ -44,7 +44,7 @@
 </div>
 <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
 <span>Реф. баланс</span>
-<span style="color:var(--text)">{{ "%.2f"|format(user.referral_balance or 0) }} ₽</span>
+<span style="color:var(--text)">{{ (user.referral_balance or 0)|float|round(2) }} ₽</span>
 </div>
 {% if user.referred_by %}
 <div style="display:flex;justify-content:space-between;padding:8px 0">
