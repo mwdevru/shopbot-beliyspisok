@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}API Статистика{% endblock %}
+{% block content %}
+<h1 class="page-title">MW API Статистика</h1>
+{% if data.balance %}
+<div class="stats-grid" style="margin-bottom:24px">
+<div class="stat-card">
+<div class="stat-label">Баланс</div>
+<div class="stat-value">{{ data.balance.balance | round(2) }} <small>₽</small></div>
+</div>
+<div class="stat-card">
+<div class="stat-label">Пополнено</div>
+<div class="stat-value">{{ data.balance.total_topups | round(2) }} <small>₽</small></div>
+</div>
+<div class="stat-card">
+<div class="stat-label">Потрачено</div>
+<div class="stat-value">{{ data.balance.total_spent | round(2) }} <small>₽</small></div>
+</div>
+<div class="stat-card">
+<div class="stat-label">Покупок</div>
+<div class="stat-value">{{ data.balance.total_purchases }}</div>
+</div>
+</div>
+{% endif %}
+<div class="grid-2">
+<div>
+<div class="card" style="margin-bottom:24px">
+<div class="card-title">Тарифы API</div>
+{% if data.tariffs %}
+<div class="table-wrap">
+<table>
+<thead><tr><th>Название</th><th>Дней</th><th>Цена</th></tr></thead>
+<tbody>
+{% for t in data.tariffs %}
+<tr>
+<td>{{ t.name }}</td>
+<td>{{ t.days }}</td>
+<td>{{ t.price }} ₽</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+{% else %}
+<p style="color:var(--text-muted)">Нет данных</p>
+{% endif %}
+</div>
+<div class="card">
+<div class="card-title">Активные гранты (можно отозвать)</div>
+{% if data.grants %}
+<div class="table-wrap">
+<table>
+<thead><tr><th>User ID</th><th>Дней</th><th>Сумма</th><th>Грантов</th></tr></thead>
+<tbody>
+{% for g in data.grants %}
+<tr>
+<td><code>{{ g.target_user_id }}</code></td>
+<td>{{ g.total_days }}</td>
+<td>{{ g.total_amount }} ₽</td>
+<td>{{ g.grants_count }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+{% else %}
+<p style="color:var(--text-muted)">Нет активных грантов</p>
+{% endif %}
+</div>
+</div>
+<div>
+<div class="card">
+<div class="card-title">История покупок через API</div>
+{% if data.history %}
+<div class="table-wrap" style="max-height:500px;overflow-y:auto">
+<table>
+<thead><tr><th>User ID</th><th>Дней</th><th>Сумма</th><th>Дата</th></tr></thead>
+<tbody>
+{% for h in data.history[:50] %}
+<tr>
+<td><code>{{ h.target_user_id }}</code></td>
+<td>{{ h.days }}</td>
+<td>{{ h.amount_rub }} ₽</td>
+<td>{{ h.created_at[:16] if h.created_at else 'N/A' }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+{% if data.history|length > 50 %}
+<p style="color:var(--text-muted);font-size:.8rem;margin-top:12px">Показано 50 из {{ data.history|length }}</p>
+{% endif %}
+{% else %}
+<p style="color:var(--text-muted)">Нет истории</p>
+{% endif %}
+</div>
+</div>
+</div>
+{% endblock %}

@@ -757,3 +757,107 @@ def set_key_expiry_date(key_id: int, new_expiry: datetime):
     except sqlite3.Error as e:
         logging.error(f"Failed to set key expiry for {key_id}: {e}")
     return False
+
+
+def search_users(query: str) -> list[dict]:
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            search_pattern = f"%{query}%"
+            cursor.execute("""
+                SELECT * FROM users 
+                WHERE username LIKE ? OR CAST(telegram_id AS TEXT) LIKE ?
+                ORDER BY registration_date DESC
+            """, (search_pattern, search_pattern))
+            return [dict(row) for row in cursor.fetchall()]
+    except sqlite3.Error as e:
+        logging.error(f"Search users error: {e}")
+        return []
+
+
+def get_users_with_active_keys() -> list[dict]:
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT DISTINCT u.* FROM users u
+                INNER JOIN vpn_keys k ON u.telegram_id = k.user_id
+                WHERE k.expiry_date > datetime('now')
+                ORDER BY u.registration_date DESC
+            """)
+            return [dict(row) for row in cursor.fetchall()]
+    except sqlite3.Error as e:
+        logging.error(f"Get active users error: {e}")
+        return []
+
+
+def get_users_without_keys() -> list[dict]:
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT u.* FROM users u
+                LEFT JOIN vpn_keys k ON u.telegram_id = k.user_id
+                WHERE k.key_id IS NULL
+                ORDER BY u.registration_date DESC
+            """)
+            return [dict(row) for row in cursor.fetchall()]
+    except sqlite3.Error as e:
+        logging.error(f"Get users without keys error: {e}")
+        return []
+
+
+def get_banned_users_count() -> int:
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM users WHERE is_banned = 1")
+            return cursor.fetchone()[0] or 0
+    except sqlite3.Error as e:
+        logging.error(f"Get banned count error: {e}")
+        return 0
+
+
+def get_active_keys_count() -> int:
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM vpn_keys WHERE expiry_date > datetime('now')")
+            return cursor.fetchone()[0] or 0
+    except sqlite3.Error as e:
+        logging.error(f"Get active keys count error: {e}")
+        return 0
+
+
+def get_expired_keys_count() -> int:
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM vpn_keys WHERE expiry_date <= datetime('now')")
+            return cursor.fetchone()[0] or 0
+    except sqlite3.Error as e:
+        logging.error(f"Get expired keys count error: {e}")
+        return 0
+
+
+def get_transactions_stats() -> dict:
+    stats = {'total': 0, 'today': 0, 'week': 0, 'month': 0, 'total_amount': 0}
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*), COALESCE(SUM(amount_rub), 0) FROM transactions")
+            row = cursor.fetchone()
+            stats['total'] = row[0] or 0
+            stats['total_amount'] = row[1] or 0
+            cursor.execute("SELECT COUNT(*) FROM transactions WHERE date(created_date) = date('now')")
+            stats['today'] = cursor.fetchone()[0] or 0
+            cursor.execute("SELECT COUNT(*) FROM transactions WHERE created_date >= date('now', '-7 days')")
+            stats['week'] = cursor.fetchone()[0] or 0
+            cursor.execute("SELECT COUNT(*) FROM transactions WHERE created_date >= date('now', '-30 days')")
+            stats['month'] = cursor.fetchone()[0] or 0
+    except sqlite3.Error as e:
+        logging.error(f"Get transactions stats error: {e}")
+    return stats

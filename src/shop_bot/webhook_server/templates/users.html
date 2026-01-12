@@ -1,16 +1,51 @@
 {% extends "base.html" %}
 {% block title %}Пользователи{% endblock %}
 {% block content %}
-<h1 class="page-title">Пользователи</h1>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:16px">
+<h1 class="page-title" style="margin:0">Пользователи</h1>
+<a href="{{ url_for('export_users') }}" class="btn btn-ghost btn-sm">📥 Экспорт CSV</a>
+</div>
 <div class="stats-grid" style="margin-bottom:24px">
 <div class="stat-card">
 <div class="stat-label">Всего</div>
-<div class="stat-value">{{ users|length }}</div>
+<div class="stat-value">{{ stats.total }}</div>
 </div>
 <div class="stat-card">
 <div class="stat-label">С ключами</div>
-<div class="stat-value">{{ users|selectattr('user_keys')|list|length }}</div>
+<div class="stat-value">{{ stats.with_keys }}</div>
 </div>
+<div class="stat-card">
+<div class="stat-label">Активных ключей</div>
+<div class="stat-value">{{ stats.active_keys }}</div>
+</div>
+<div class="stat-card">
+<div class="stat-label">Истекших</div>
+<div class="stat-value">{{ stats.expired_keys }}</div>
+</div>
+<div class="stat-card">
+<div class="stat-label">Забанено</div>
+<div class="stat-value">{{ stats.banned }}</div>
+</div>
+</div>
+<div class="card" style="margin-bottom:24px">
+<form method="get" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+<div class="form-group" style="margin:0;flex:1;min-width:200px">
+<label class="form-label">Поиск</label>
+<input type="text" name="search" class="form-input" placeholder="ID или username" value="{{ search }}">
+</div>
+<div class="form-group" style="margin:0">
+<label class="form-label">Фильтр</label>
+<select name="filter" class="form-input" style="width:auto">
+<option value="all" {% if filter_type == 'all' %}selected{% endif %}>Все</option>
+<option value="active" {% if filter_type == 'active' %}selected{% endif %}>С активными ключами</option>
+<option value="nokeys" {% if filter_type == 'nokeys' %}selected{% endif %}>Без ключей</option>
+</select>
+</div>
+<button type="submit" class="btn btn-primary">Найти</button>
+{% if search or filter_type != 'all' %}
+<a href="{{ url_for('users_page') }}" class="btn btn-ghost">Сбросить</a>
+{% endif %}
+</form>
 </div>
 <div class="users-grid">
 {% for user in users %}
@@ -64,7 +99,18 @@
 </form>
 {% endif %}
 </div>
+<details style="margin-top:12px">
+<summary style="cursor:pointer;font-size:.8rem;color:var(--text-muted)">💬 Отправить сообщение</summary>
+<form action="{{ url_for('send_message_to_user', user_id=user.telegram_id) }}" method="post" style="margin-top:8px">
+<div style="display:flex;gap:8px">
+<input type="text" name="message" class="form-input" placeholder="Текст сообщения" style="flex:1;padding:6px 10px;font-size:.8rem">
+<button type="submit" class="btn btn-primary btn-xs">📤</button>
 </div>
+</form>
+</details>
+</div>
+{% else %}
+<div class="card"><p style="color:var(--text-muted)">Пользователи не найдены</p></div>
 {% endfor %}
 </div>
 {% endblock %}

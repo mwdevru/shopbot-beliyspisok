@@ -21,7 +21,9 @@ from shop_bot.data_manager.database import (
     get_total_keys_count, get_total_spent_sum, get_daily_stats_for_charts,
     get_recent_transactions, get_paginated_transactions, get_all_users, get_user_keys,
     ban_user, unban_user, delete_user_keys, get_setting, find_and_complete_ton_transaction,
-    get_user, update_key_expiry_days, set_key_expiry_date, get_key_by_id, add_new_key
+    get_user, update_key_expiry_days, set_key_expiry_date, get_key_by_id, add_new_key,
+    search_users, get_users_with_active_keys, get_users_without_keys, get_banned_users_count,
+    get_active_keys_count, get_expired_keys_count, get_transactions_stats
 )
 
 _bot_controller = None
@@ -126,10 +128,30 @@ def create_webhook_app(bot_controller_instance):
     @flask_app.route('/users')
     @login_required
     def users_page():
-        users = get_all_users()
+        search = request.args.get('search', '').strip()
+        filter_type = request.args.get('filter', 'all')
+        
+        if search:
+            users = search_users(search)
+        elif filter_type == 'active':
+            users = get_users_with_active_keys()
+        elif filter_type == 'nokeys':
+            users = get_users_without_keys()
+        else:
+            users = get_all_users()
+        
         for user in users:
             user['user_keys'] = get_user_keys(user['telegram_id'])
-        return render_template('users.html', users=users, **get_common_template_data())
+        
+        stats = {
+            'total': get_user_count(),
+            'banned': get_banned_users_count(),
+            'with_keys': len(get_users_with_active_keys()),
+            'active_keys': get_active_keys_count(),
+            'expired_keys': get_expired_keys_count()
+        }
+        
+        return render_template('users.html', users=users, stats=stats, search=search, filter_type=filter_type, **get_common_template_data())
 
     @flask_app.route('/settings', methods=['GET', 'POST'])
     @login_required
@@ -332,6 +354,119 @@ def create_webhook_app(bot_controller_instance):
         delete_plan(plan_id)
         flash("Тариф удален.", 'success')
         return redirect(url_for('settings_page'))
+
+    @flask_app.route('/api-stats')
+    @login_required
+    def api_stats_page():
+        api_key = get_setting("mwshark_api_key")
+        if not api_key:
+            flash('API ключ не настроен.', 'danger')
+            return redirect(url_for('settings_page'))
+        
+        data = {'balance': None, 'grants': [], 'history': [], 'tariffs': []}
+        
+        try:
+            loop = current_app.config.get('EVENT_LOOP')
+            if loop and loop.is_running():
+                balance_future = asyncio.run_coroutine_threadsafe(mwshark_api.get_api_balance(api_key), loop)
+                grants_future = asyncio.run_coroutine_threadsafe(mwshark_api.get_user_grants(api_key), loop)
+                history_future = asyncio.run_coroutine_threadsafe(mwshark_api.get_api_history(api_key), loop)
+                tariffs_future = asyncio.run_coroutine_threadsafe(mwshark_api.get_api_tariffs(api_key), loop)
+                
+                data['balance'] = balance_future.result(timeout=5)
+                data['grants'] = grants_future.result(timeout=5).get('grants', [])
+                data['history'] = history_future.result(timeout=5).get('purchases', [])
+                data['tariffs'] = tariffs_future.result(timeout=5).get('tariffs', [])
+        except Exception as e:
+            logger.error(f"API stats error: {e}")
+            flash(f'Ошибка загрузки данных API: {e}', 'danger')
+        
+        return render_template('api_stats.html', data=data, **get_common_template_data())
+
+    @flask_app.route('/transactions')
+    @login_required
+    def transactions_page():
+        page = request.args.get('page', 1, type=int)
+        per_page = 20
+        transactions, total = get_paginated_transactions(page=page, per_page=per_page)
+        total_pages = ceil(total / per_page)
+        stats = get_transactions_stats()
+        return render_template('transactions.html', transactions=transactions, stats=stats,
+                               current_page=page, total_pages=total, **get_common_template_data())
+
+    @flask_app.route('/export/users')
+    @login_required
+    def export_users():
+        users = get_all_users()
+        output = "telegram_id,username,total_spent,total_months,is_banned,registration_date\n"
+        for u in users:
+            output += f"{u['telegram_id']},{u.get('username','')},{u.get('total_spent',0)},{u.get('total_months',0)},{u.get('is_banned',0)},{u.get('registration_date','')}\n"
+        return output, 200, {'Content-Type': 'text/csv', 'Content-Disposition': 'attachment; filename=users.csv'}
+
+    @flask_app.route('/broadcast', methods=['GET', 'POST'])
+    @login_required
+    def broadcast_page():
+        if request.method == 'POST':
+            message_text = request.form.get('message', '').strip()
+            if not message_text:
+                flash('Введите текст сообщения.', 'danger')
+                return redirect(url_for('broadcast_page'))
+            
+            bot = _bot_controller.get_bot_instance()
+            loop = current_app.config.get('EVENT_LOOP')
+            
+            if not bot or not loop or not loop.is_running():
+                flash('Бот не запущен.', 'danger')
+                return redirect(url_for('broadcast_page'))
+            
+            users = get_all_users()
+            sent = 0
+            failed = 0
+            
+            async def send_broadcast():
+                nonlocal sent, failed
+                for user in users:
+                    if user.get('is_banned'):
+                        continue
+                    try:
+                        await bot.send_message(user['telegram_id'], message_text, parse_mode='HTML')
+                        sent += 1
+                        await asyncio.sleep(0.05)
+                    except Exception:
+                        failed += 1
+            
+            future = asyncio.run_coroutine_threadsafe(send_broadcast(), loop)
+            future.result(timeout=300)
+            
+            flash(f'Рассылка завершена. Отправлено: {sent}, ошибок: {failed}', 'success')
+            return redirect(url_for('broadcast_page'))
+        
+        return render_template('broadcast.html', user_count=get_user_count(), **get_common_template_data())
+
+    @flask_app.route('/users/message/<int:user_id>', methods=['POST'])
+    @login_required
+    def send_message_to_user(user_id):
+        message_text = request.form.get('message', '').strip()
+        if not message_text:
+            flash('Введите текст.', 'danger')
+            return redirect(url_for('users_page'))
+        
+        bot = _bot_controller.get_bot_instance()
+        loop = current_app.config.get('EVENT_LOOP')
+        
+        if bot and loop and loop.is_running():
+            async def send():
+                await bot.send_message(user_id, message_text, parse_mode='HTML')
+            try:
+                future = asyncio.run_coroutine_threadsafe(send(), loop)
+                future.result(timeout=10)
+                flash(f'Сообщение отправлено {user_id}.', 'success')
+            except Exception as e:
+                flash(f'Ошибка: {e}', 'danger')
+        else:
+            flash('Бот не запущен.', 'danger')
+        
+        return redirect(url_for('users_page'))
 
 
     @flask_app.route('/yookassa-webhook', methods=['POST'])

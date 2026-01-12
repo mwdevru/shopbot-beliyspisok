@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Транзакции{% endblock %}
+{% block content %}
+<h1 class="page-title">Транзакции</h1>
+<div class="stats-grid" style="margin-bottom:24px">
+<div class="stat-card">
+<div class="stat-label">Всего</div>
+<div class="stat-value">{{ stats.total }}</div>
+</div>
+<div class="stat-card">
+<div class="stat-label">Сегодня</div>
+<div class="stat-value">{{ stats.today }}</div>
+</div>
+<div class="stat-card">
+<div class="stat-label">За неделю</div>
+<div class="stat-value">{{ stats.week }}</div>
+</div>
+<div class="stat-card">
+<div class="stat-label">За месяц</div>
+<div class="stat-value">{{ stats.month }}</div>
+</div>
+<div class="stat-card">
+<div class="stat-label">Сумма</div>
+<div class="stat-value">{{ "%.0f"|format(stats.total_amount) }} <small>₽</small></div>
+</div>
+</div>
+<div class="card">
+{% if transactions %}
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Пользователь</th>
+<th>Сумма</th>
+<th>Метод</th>
+<th>Статус</th>
+<th>План</th>
+<th>Дата</th>
+</tr>
+</thead>
+<tbody>
+{% for tx in transactions %}
+<tr>
+<td><small>{{ tx.transaction_id }}</small></td>
+<td>{{ tx.username or 'N/A' }}<br><small style="color:var(--text-muted)">{{ tx.user_id }}</small></td>
+<td>{{ tx.amount_rub | round(2) }} ₽</td>
+<td><span class="badge badge-success">{{ tx.payment_method or 'N/A' }}</span></td>
+<td>{{ tx.status }}</td>
+<td>{{ tx.plan_name or 'N/A' }}</td>
+<td>{{ tx.created_date[:16] if tx.created_date else 'N/A' }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+{% if total_pages > 1 %}
+<nav class="pagination">
+<a href="{{ url_for('transactions_page', page=current_page - 1) }}" class="{{ 'disabled' if current_page == 1 else '' }}">«</a>
+{% for p in range(1, total_pages + 1) %}
+{% if p <= 5 or p > total_pages - 3 or (p >= current_page - 1 and p <= current_page + 1) %}
+<a href="{{ url_for('transactions_page', page=p) }}" class="{{ 'active' if p == current_page else '' }}">{{ p }}</a>
+{% elif p == 6 or p == total_pages - 3 %}
+<span style="padding:8px">...</span>
+{% endif %}
+{% endfor %}
+<a href="{{ url_for('transactions_page', page=current_page + 1) }}" class="{{ 'disabled' if current_page == total_pages else '' }}">»</a>
+</nav>
+{% endif %}
+{% else %}
+<p style="color:var(--text-muted)">Транзакций пока нет</p>
+{% endif %}
+</div>
+{% endblock %}

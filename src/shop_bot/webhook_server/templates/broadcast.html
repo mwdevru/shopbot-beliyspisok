@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Рассылка{% endblock %}
+{% block content %}
+<h1 class="page-title">Рассылка</h1>
+<div class="grid-2">
+<div>
+<div class="card">
+<div class="card-title">Отправить сообщение всем</div>
+<form method="post">
+<div class="form-group">
+<label class="form-label">Текст сообщения</label>
+<textarea name="message" class="form-input" rows="6" placeholder="Поддерживается HTML: &lt;b&gt;жирный&lt;/b&gt;, &lt;i&gt;курсив&lt;/i&gt;, &lt;code&gt;код&lt;/code&gt;" required></textarea>
+</div>
+<p style="font-size:.8rem;color:var(--text-muted);margin-bottom:16px">
+Получателей: <strong>{{ user_count }}</strong> (забаненные пропускаются)
+</p>
+<button type="submit" class="btn btn-primary" onclick="return confirm('Отправить рассылку {{ user_count }} пользователям?')">📤 Отправить рассылку</button>
+</form>
+</div>
+</div>
+<div>
+<div class="card">
+<div class="card-title">Подсказки</div>
+<div style="font-size:.875rem;color:var(--text-muted);line-height:1.6">
+<p><strong>HTML форматирование:</strong></p>
+<ul style="margin:8px 0 16px 20px">
+<li><code>&lt;b&gt;жирный&lt;/b&gt;</code></li>
+<li><code>&lt;i&gt;курсив&lt;/i&gt;</code></li>
+<li><code>&lt;u&gt;подчеркнутый&lt;/u&gt;</code></li>
+<li><code>&lt;s&gt;зачеркнутый&lt;/s&gt;</code></li>
+<li><code>&lt;code&gt;моноширинный&lt;/code&gt;</code></li>
+<li><code>&lt;a href="url"&gt;ссылка&lt;/a&gt;</code></li>
+</ul>
+<p><strong>Советы:</strong></p>
+<ul style="margin:8px 0 0 20px">
+<li>Рассылка идет с задержкой 50мс между сообщениями</li>
+<li>Забаненные пользователи пропускаются</li>
+<li>Для кнопок используйте рассылку через бота</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+{% endblock %}
