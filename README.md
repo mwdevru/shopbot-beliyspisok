@@ -1,21 +1,14 @@
 <div align="center" markdown>
       <h1>VLESS Shop Bot | Telegram-бот для продажи VPN</h1>
 <p align="center">
-    <a href="https://github.com/evansvl/vless-shopbot?tab=readme-ov-file#%EF%B8%8F-%D1%83%D1%81%D1%82%D0%B0%D0%BD%D0%BE%D0%B2%D0%BA%D0%B0-%D0%BF%D0%BE%D0%B4-%D0%BA%D0%BB%D1%8E%D1%87">Установка и обновление</a> •
-    <a href="https://github.com/evansvl/vless-shopbot?tab=readme-ov-file#-%D0%B1%D0%B0%D0%B3%D0%B8-%D0%B8-%D0%BF%D1%80%D0%B5%D0%B4%D0%BB%D0%BE%D0%B6%D0%B5%D0%BD%D0%B8%D1%8F">Баги и предложения</a> •
-    <a href="https://github.com/evansvl/vless-shopbot?tab=readme-ov-file#-%D0%BF%D0%BE%D0%B4%D0%B4%D0%B5%D1%80%D0%B6%D0%B0%D1%82%D1%8C-%D1%80%D0%B0%D0%B7%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D0%BA%D1%83">Поддержать проект</a>
+    <a href="#%EF%B8%8F-%D1%83%D1%81%D1%82%D0%B0%D0%BD%D0%BE%D0%B2%D0%BA%D0%B0-%D0%BF%D0%BE%D0%B4-%D0%BA%D0%BB%D1%8E%D1%87">Установка и обновление</a>
 </p>
 
-![GitHub License](https://img.shields.io/github/license/evansvl/vless-shopbot)
-![GitHub Release](https://img.shields.io/github/v/release/evansvl/vless-shopbot)
-![GitHub Issues or Pull Requests](https://img.shields.io/github/issues/evansvl/vless-shopbot)
-![GitHub Stars](https://img.shields.io/github/stars/evansvl/vless-shopbot?style=flat)
+> **Данный проект является форком [evansvl/vless-shopbot](https://github.com/evansvl/vless-shopbot)**
 
 </div>
 
 **VLESS Shop Bot** — это комплексное решение для автоматизированной продажи VLESS-конфигураций через Telegram. Бот глубоко интегрирован с панелью управления **3x-ui** и предоставляет мощную веб-панель для полного контроля над вашим бизнесом.
-
-## [Следите за обновлениями бота в Телеграм канале!](https://t.me/mwvpnru)
 
 ## 🚀 Основные возможности
 
@@ -36,10 +29,6 @@
 1.  **Сервер на базе Ubuntu/Debian** с доступом по SSH.
 2.  **Доменное имя**, DNS A-запись которого **уже указывает** на IP-адрес вашего сервера.
 3.  **Панель 3x-ui**, установленная на одном или нескольких серверах.
-
-## 💻 Приобрести сервер и домен
-
-Если у вас **не имеется сервера и/или домена**, то вы можете приобрести их **здесь: [Aeza](https://aeza.net/?ref=613643)**
 
 ---
 
@@ -119,7 +108,7 @@ curl -sSL https://raw.githubusercontent.com/evansvl/vless-shopbot/main/install.s
 https://your-domain.com/yookassa-webhook
 _(Замените your-domain.com на ваш домен. Если при установке вы выбрали порт 8443, укажите его: https://your-domain.com:8443/yookassa-webhook)_
 
-## 💎 Настройка CryptoBot
+## � Настройка CryptoBot
 
 Перейдите в Telegram бота [@CryptoBot](https://t.me/CryptoBot).
 
@@ -155,19 +144,3 @@ docker-compose up -d
 ```bash
 curl -sSL https://raw.githubusercontent.com/evansvl/vless-shopbot/main/install.sh | sudo bash
 ```
-
-## 🙌 Баги и предложения
-
-Если вы нашли баг, или у вас есть предложение, то создавайте "Issue" или присылайте Pull Request'ы.
-
-## 💎 Поддержать разработку
-
-**СБП/Карта РФ:** https://yookassa.ru/my/i/aJRiTyq5D3VB/l
-
-**CryptoBot:** https://t.me/send?start=IVftnggXmRv8
-
-**TON:** `UQAtdMEig3Wl_D3FNx4RU3RhxnoJI3IizGxrrNj3O8Q-fDpK`
-
-**USDT (TRC20):** `TBW9TFUh93U1G5eTT1VTsZw51L669khCiz`
-
-## Я ценю любой вклад в развитие проекта ❤️
