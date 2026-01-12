@@ -59,7 +59,7 @@
             <div class="user-keys">
                 {% for key in user.user_keys %}
                 <div class="key-item">
-                    <span class="key-icon">{{ '✅' if key.expiry_date > now().isoformat() else '❌' }}</span>
+                    <span class="key-icon">{{ '✅' if key.expiry_date > now|string else '❌' }}</span>
                     <span class="key-expiry">до {{ key.expiry_date[:10] }}</span>
                 </div>
                 {% endfor %}
