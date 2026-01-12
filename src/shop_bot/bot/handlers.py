@@ -1094,7 +1094,7 @@ async def _create_platega_payment(user_id: int, price: float, days: int, state_d
     }
 
     payload = {
-        "paymentMethod": 2,
+        "paymentMethod": int(get_setting("platega_payment_method") or "2"),
         "paymentDetails": {"amount": int(price), "currency": "RUB"},
         "description": f"Подписка на {days} дн.",
         "return": return_url,

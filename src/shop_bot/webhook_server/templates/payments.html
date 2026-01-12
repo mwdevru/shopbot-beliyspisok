@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Платежи{% endblock %}
+{% block content %}
+<h1 class="page-title">Платежи</h1>
+<div class="stats-grid" style="margin-bottom:24px">
+<div class="stat-card">
+<div class="stat-label">YooKassa</div>
+<div class="stat-value">{% if settings.yookassa_shop_id and settings.yookassa_secret_key %}✅{% else %}❌{% endif %}</div>
+</div>
+<div class="stat-card">
+<div class="stat-label">Platega</div>
+<div class="stat-value">{% if settings.platega_merchant_id and settings.platega_secret_key %}✅{% else %}❌{% endif %}</div>
+</div>
+<div class="stat-card">
+<div class="stat-label">CryptoBot</div>
+<div class="stat-value">{% if settings.cryptobot_token %}✅{% else %}❌{% endif %}</div>
+</div>
+<div class="stat-card">
+<div class="stat-label">Heleket</div>
+<div class="stat-value">{% if settings.heleket_merchant_id and settings.heleket_api_key %}✅{% else %}❌{% endif %}</div>
+</div>
+</div>
+<form action="{{ url_for('payments_page') }}" method="post">
+<div class="grid-2">
+<div>
+<div class="card" style="margin-bottom:24px">
+<div class="card-title">YooKassa</div>
+<p style="font-size:.8rem;color:var(--text-muted);margin-bottom:12px">Банковская карта, СБП</p>
+<div class="form-group">
+<label class="form-label">Shop ID</label>
+<input type="text" name="yookassa_shop_id" class="form-input" value="{{ settings.yookassa_shop_id or '' }}">
+</div>
+<div class="form-group">
+<label class="form-label">Secret Key</label>
+<div class="password-wrap">
+<input type="password" name="yookassa_secret_key" class="form-input" value="{{ settings.yookassa_secret_key or '' }}">
+<button type="button" class="toggle-pass">👁</button>
+</div>
+</div>
+<div class="form-group">
+<label class="form-label">Email для чеков</label>
+<input type="text" name="receipt_email" class="form-input" value="{{ settings.receipt_email or '' }}">
+</div>
+<div class="form-group">
+<div class="form-check">
+<input type="hidden" name="sbp_enabled" value="false">
+<input type="checkbox" id="sbp_enabled" name="sbp_enabled" value="true" {% if settings.sbp_enabled == 'true' %}checked{% endif %}>
+<label for="sbp_enabled">Включить СБП</label>
+</div>
+</div>
+</div>
+<div class="card" style="margin-bottom:24px">
+<div class="card-title">Platega</div>
+<p style="font-size:.8rem;color:var(--text-muted);margin-bottom:12px">Карта / СБП через <a href="https://platega.io" target="_blank">platega.io</a></p>
+<div class="form-group">
+<label class="form-label">Merchant ID</label>
+<input type="text" name="platega_merchant_id" class="form-input" value="{{ settings.platega_merchant_id or '' }}">
+</div>
+<div class="form-group">
+<label class="form-label">Secret Key</label>
+<div class="password-wrap">
+<input type="password" name="platega_secret_key" class="form-input" value="{{ settings.platega_secret_key or '' }}">
+<button type="button" class="toggle-pass">👁</button>
+</div>
+</div>
+<div class="form-group">
+<label class="form-label">Метод оплаты</label>
+<select name="platega_payment_method" class="form-input">
+<option value="2" {% if settings.platega_payment_method == '2' or not settings.platega_payment_method %}selected{% endif %}>СБП QR</option>
+<option value="1" {% if settings.platega_payment_method == '1' %}selected{% endif %}>Банковская карта</option>
+<option value="3" {% if settings.platega_payment_method == '3' %}selected{% endif %}>СБП по номеру</option>
+</select>
+</div>
+</div>
+</div>
+<div>
+<div class="card" style="margin-bottom:24px">
+<div class="card-title">CryptoBot</div>
+<p style="font-size:.8rem;color:var(--text-muted);margin-bottom:12px">Криптовалюта через <a href="https://t.me/CryptoBot" target="_blank">@CryptoBot</a></p>
+<div class="form-group">
+<label class="form-label">Token</label>
+<div class="password-wrap">
+<input type="password" name="cryptobot_token" class="form-input" value="{{ settings.cryptobot_token or '' }}">
+<button type="button" class="toggle-pass">👁</button>
+</div>
+</div>
+</div>
+<div class="card" style="margin-bottom:24px">
+<div class="card-title">Heleket</div>
+<p style="font-size:.8rem;color:var(--text-muted);margin-bottom:12px">Криптовалюта через <a href="https://heleket.com" target="_blank">heleket.com</a></p>
+<div class="form-group">
+<label class="form-label">Merchant ID</label>
+<input type="text" name="heleket_merchant_id" class="form-input" value="{{ settings.heleket_merchant_id or '' }}">
+</div>
+<div class="form-group">
+<label class="form-label">API Key</label>
+<div class="password-wrap">
+<input type="password" name="heleket_api_key" class="form-input" value="{{ settings.heleket_api_key or '' }}">
+<button type="button" class="toggle-pass">👁</button>
+</div>
+</div>
+</div>
+<div class="card" style="margin-bottom:24px">
+<div class="card-title">Общие настройки</div>
+<div class="form-group">
+<label class="form-label">Домен (для webhook)</label>
+<input type="text" name="domain" class="form-input" value="{{ settings.domain or '' }}" placeholder="my-shop.com">
+</div>
+</div>
+</div>
+</div>
+<button type="submit" class="btn btn-primary" style="width:100%">Сохранить</button>
+</form>
+{% endblock %}
