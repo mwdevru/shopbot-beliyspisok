@@ -168,8 +168,7 @@ def get_all_settings() -> Dict[str, Any]:
     cursor.execute("SELECT key, value FROM bot_settings")
     result = {}
     for row in cursor.fetchall():
-        val = row['value']
-        result[row['key']] = val if val else None
+        result[row['key']] = row['value'] or ''
     return result
 
 
