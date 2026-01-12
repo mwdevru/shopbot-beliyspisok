@@ -16,13 +16,8 @@ read_input() {
     read -p "$1" "$2" < /dev/tty
 }
 
-read_input_yn() {
-    read -p "$1" -n 1 -r REPLY < /dev/tty
-    echo
-}
-
-REPO_URL="https://github.com/mwshark/vpn-reseller-bot.git"
-PROJECT_DIR="vpn-reseller-bot"
+REPO_URL="https://github.com/mwdevru/shopbot-beliyspisok.git"
+PROJECT_DIR="shopbot-beliyspisok"
 NGINX_CONF_FILE="/etc/nginx/sites-available/${PROJECT_DIR}.conf"
 
 echo -e "${GREEN}--- Запуск скрипта установки/обновления VPN Reseller Bot ---${NC}"
@@ -160,7 +155,7 @@ echo -e "\nЛогин: ${CYAN}admin${NC}"
 echo -e "Пароль: ${CYAN}admin${NC}"
 echo -e "\n${RED}ВАЖНО:${NC}"
 echo -e "1. Смените пароль в настройках панели"
-echo -e "2. Получите API ключ на https://vpn.mwshark.host"
+echo -e "2. Получите API ключ в боте https://t.me/mwvpnbot"
 echo -e "3. Введите API ключ, токен бота и Telegram ID в настройках"
 echo -e "4. Создайте тарифы и запустите бота"
 echo -e "\n"

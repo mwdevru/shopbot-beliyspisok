@@ -1,5 +1,4 @@
 import logging
-
 from datetime import datetime
 
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
@@ -14,10 +13,12 @@ main_reply_keyboard = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
+
 def create_main_menu_keyboard(user_keys: list, trial_available: bool, is_admin: bool) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    
-    if trial_available and get_setting("trial_enabled") == "true":
+    trial_enabled = get_setting("trial_enabled") == "true"
+
+    if trial_available and trial_enabled:
         builder.button(text="🎁 Попробовать бесплатно", callback_data="get_trial")
 
     builder.button(text="👤 Мой профиль", callback_data="show_profile")
@@ -26,14 +27,15 @@ def create_main_menu_keyboard(user_keys: list, trial_available: bool, is_admin: 
     builder.button(text="🆘 Поддержка", callback_data="show_help")
     builder.button(text="ℹ️ О проекте", callback_data="show_about")
     builder.button(text="❓ Как использовать", callback_data="howto_vless")
+
     if is_admin:
         builder.button(text="📢 Рассылка", callback_data="start_broadcast")
 
-    layout = [1 if trial_available and get_setting("trial_enabled") == "true" else 0, 2, 1, 2, 1, 1 if is_admin else 0]
-    actual_layout = [size for size in layout if size > 0]
-    builder.adjust(*actual_layout)
-    
+    layout = [1 if trial_available and trial_enabled else 0, 2, 1, 2, 1, 1 if is_admin else 0]
+    builder.adjust(*[s for s in layout if s > 0])
+
     return builder.as_markup()
+
 
 def create_broadcast_options_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
@@ -43,6 +45,7 @@ def create_broadcast_options_keyboard() -> InlineKeyboardMarkup:
     builder.adjust(2, 1)
     return builder.as_markup()
 
+
 def create_broadcast_confirmation_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="✅ Отправить всем", callback_data="confirm_broadcast")
@@ -50,10 +53,12 @@ def create_broadcast_confirmation_keyboard() -> InlineKeyboardMarkup:
     builder.adjust(2)
     return builder.as_markup()
 
+
 def create_broadcast_cancel_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="❌ Отмена", callback_data="cancel_broadcast")
     return builder.as_markup()
+
 
 def create_about_keyboard(channel_url: str | None, terms_url: str | None, privacy_url: str | None) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
@@ -66,7 +71,8 @@ def create_about_keyboard(channel_url: str | None, terms_url: str | None, privac
     builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
     builder.adjust(1)
     return builder.as_markup()
-    
+
+
 def create_support_keyboard(support_user: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="🆘 Написать в поддержку", url=support_user)
@@ -74,16 +80,17 @@ def create_support_keyboard(support_user: str) -> InlineKeyboardMarkup:
     builder.adjust(1)
     return builder.as_markup()
 
+
 def create_plans_keyboard(plans: list[dict], action: str, key_id: int = 0) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     for plan in plans:
-        # Format: buy_{plan_id}_{action}_{key_id}
         callback_data = f"buy_{plan['plan_id']}_{action}_{key_id}"
         builder.button(text=f"{plan['plan_name']} - {plan['price']:.0f} RUB", callback_data=callback_data)
     back_callback = "manage_keys" if action == "extend" else "back_to_main_menu"
     builder.button(text="⬅️ Назад", callback_data=back_callback)
-    builder.adjust(1) 
+    builder.adjust(1)
     return builder.as_markup()
+
 
 def create_skip_email_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
@@ -92,36 +99,36 @@ def create_skip_email_keyboard() -> InlineKeyboardMarkup:
     builder.adjust(1)
     return builder.as_markup()
 
+
 def create_payment_method_keyboard(payment_methods: dict, action: str, key_id: int) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
 
     if payment_methods and payment_methods.get("yookassa"):
-        if get_setting("sbp_enabled"):
-            builder.button(text="🏦 СБП / Банковская карта", callback_data="pay_yookassa")
-        else:
-            builder.button(text="🏦 Банковская карта", callback_data="pay_yookassa")
+        text = "🏦 СБП / Банковская карта" if get_setting("sbp_enabled") else "🏦 Банковская карта"
+        builder.button(text=text, callback_data="pay_yookassa")
     if payment_methods and payment_methods.get("heleket"):
         builder.button(text="💎 Криптовалюта", callback_data="pay_heleket")
     if payment_methods and payment_methods.get("cryptobot"):
         builder.button(text="🤖 CryptoBot", callback_data="pay_cryptobot")
     if payment_methods and payment_methods.get("tonconnect"):
-        callback_data_ton = "pay_tonconnect"
-        logger.info(f"Creating TON button with callback_data: '{callback_data_ton}'")
-        builder.button(text="🪙 TON Connect", callback_data=callback_data_ton)
+        builder.button(text="🪙 TON Connect", callback_data="pay_tonconnect")
 
     builder.button(text="⬅️ Назад", callback_data="back_to_email_prompt")
     builder.adjust(1)
     return builder.as_markup()
+
 
 def create_ton_connect_keyboard(connect_url: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="🚀 Открыть кошелек", url=connect_url)
     return builder.as_markup()
 
+
 def create_payment_keyboard(payment_url: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="Перейти к оплате", url=payment_url)
     return builder.as_markup()
+
 
 def create_keys_management_keyboard(keys: list) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
@@ -136,6 +143,7 @@ def create_keys_management_keyboard(keys: list) -> InlineKeyboardMarkup:
     builder.adjust(1)
     return builder.as_markup()
 
+
 def create_key_info_keyboard(key_id: int) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="➕ Продлить этот ключ", callback_data=f"extend_key_{key_id}")
@@ -144,6 +152,7 @@ def create_key_info_keyboard(key_id: int) -> InlineKeyboardMarkup:
     builder.button(text="⬅️ Назад к списку ключей", callback_data="manage_keys")
     builder.adjust(1)
     return builder.as_markup()
+
 
 def create_howto_vless_keyboard(android_url: str, linux_url: str, ios_url: str, windows_url: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
@@ -155,6 +164,7 @@ def create_howto_vless_keyboard(android_url: str, linux_url: str, ios_url: str, 
     builder.adjust(2, 2, 1)
     return builder.as_markup()
 
+
 def create_howto_vless_keyboard_key(android_url: str, linux_url: str, ios_url: str, windows_url: str, key_id: int) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="📱 Android", url=android_url)
@@ -165,12 +175,19 @@ def create_howto_vless_keyboard_key(android_url: str, linux_url: str, ios_url: s
     builder.adjust(2, 2, 1)
     return builder.as_markup()
 
+
 def create_back_to_menu_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
     return builder.as_markup()
 
-def create_welcome_keyboard(channel_url: str | None, is_subscription_forced: bool = False, terms_url: str | None = None, privacy_url: str | None = None) -> InlineKeyboardMarkup:
+
+def create_welcome_keyboard(
+    channel_url: str | None,
+    is_subscription_forced: bool = False,
+    terms_url: str | None = None,
+    privacy_url: str | None = None
+) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
 
     if channel_url and terms_url and privacy_url and is_subscription_forced:
@@ -196,12 +213,14 @@ def create_welcome_keyboard(channel_url: str | None, is_subscription_forced: boo
     else:
         builder.button(text="📢 Наш канал (не обязательно)", url=channel_url)
         builder.button(text="✅ Я подписался", callback_data="check_subscription_and_agree")
+
     builder.adjust(1)
     return builder.as_markup()
+
 
 def get_main_menu_button() -> InlineKeyboardButton:
     return InlineKeyboardButton(text="🏠 В главное меню", callback_data="show_main_menu")
 
+
 def get_buy_button() -> InlineKeyboardButton:
     return InlineKeyboardButton(text="💳 Купить подписку", callback_data="buy_vpn")
-

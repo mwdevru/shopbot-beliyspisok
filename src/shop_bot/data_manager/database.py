@@ -1,13 +1,14 @@
 import sqlite3
-from datetime import datetime
-import logging
-from pathlib import Path
 import json
+import logging
+from datetime import datetime
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path("/app/project")
 DB_FILE = PROJECT_ROOT / "users.db"
+
 
 def initialize_db():
     try:
@@ -61,7 +62,6 @@ def initialize_db():
                     thread_id INTEGER NOT NULL
                 )
             ''')
-            # xui_hosts table removed - using MWShark API instead
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS plans (
                     plan_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -69,7 +69,7 @@ def initialize_db():
                     days INTEGER NOT NULL,
                     price REAL NOT NULL
                 )
-            ''')            
+            ''')
             default_settings = {
                 "panel_login": "admin",
                 "panel_password": "admin",
@@ -115,9 +115,10 @@ def initialize_db():
     except sqlite3.Error as e:
         logging.error(f"Database error on initialization: {e}")
 
+
 def run_migration():
     if not DB_FILE.exists():
-        logging.error("Users.db database file was not found. There is nothing to migrate.")
+        logging.error("Users.db database file was not found.")
         return
 
     logging.info(f"Starting the migration of the database: {DB_FILE}")
@@ -126,62 +127,44 @@ def run_migration():
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
 
-        logging.info("The migration of the table 'users' ...")
-    
+        logging.info("Migrating table 'users'...")
         cursor.execute("PRAGMA table_info(users)")
         columns = [row[1] for row in cursor.fetchall()]
-        
-        if 'referred_by' not in columns:
-            cursor.execute("ALTER TABLE users ADD COLUMN referred_by INTEGER")
-            logging.info(" -> The column 'referred_by' is successfully added.")
-        else:
-            logging.info(" -> The column 'referred_by' already exists.")
-            
-        if 'referral_balance' not in columns:
-            cursor.execute("ALTER TABLE users ADD COLUMN referral_balance REAL DEFAULT 0")
-            logging.info(" -> The column 'referral_balance' is successfully added.")
-        else:
-            logging.info(" -> The column 'referral_balance' already exists.")
-        
-        if 'referral_balance_all' not in columns:
-            cursor.execute("ALTER TABLE users ADD COLUMN referral_balance_all REAL DEFAULT 0")
-            logging.info(" -> The column 'referral_balance_all' is successfully added.")
-        else:
-            logging.info(" -> The column 'referral_balance_all' already exists.")
-        
-        logging.info("The table 'users' has been successfully updated.")
 
-        logging.info("The migration of the table 'Transactions' ...")
+        migrations = [
+            ('referred_by', "ALTER TABLE users ADD COLUMN referred_by INTEGER"),
+            ('referral_balance', "ALTER TABLE users ADD COLUMN referral_balance REAL DEFAULT 0"),
+            ('referral_balance_all', "ALTER TABLE users ADD COLUMN referral_balance_all REAL DEFAULT 0")
+        ]
 
+        for col_name, sql in migrations:
+            if col_name not in columns:
+                cursor.execute(sql)
+                logging.info(f"Column '{col_name}' added.")
+
+        logging.info("Migrating table 'transactions'...")
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='transactions'")
         table_exists = cursor.fetchone()
 
         if table_exists:
             cursor.execute("PRAGMA table_info(transactions)")
             trans_columns = [row[1] for row in cursor.fetchall()]
-            
-            if 'payment_id' in trans_columns and 'status' in trans_columns and 'username' in trans_columns:
-                logging.info("The 'Transactions' table already has a new structure. Migration is not required.")
-            else:
+
+            if not all(col in trans_columns for col in ['payment_id', 'status', 'username']):
                 backup_name = f"transactions_backup_{datetime.now().strftime('%Y%m%d%H%M%S')}"
-                logging.warning(f"The old structure of the TRANSACTIONS table was discovered. I rename in '{backup_name}' ...")
+                logging.warning(f"Old structure found. Renaming to '{backup_name}'...")
                 cursor.execute(f"ALTER TABLE transactions RENAME TO {backup_name}")
-                
-                logging.info("I create a new table 'Transactions' with the correct structure ...")
                 create_new_transactions_table(cursor)
-                logging.info("The new table 'Transactions' has been successfully created. The old data is saved.")
         else:
-            logging.info("TRANSACTIONS table was not found. I create a new one ...")
             create_new_transactions_table(cursor)
-            logging.info("The new table 'Transactions' has been successfully created.")
 
         conn.commit()
         conn.close()
-        
-        logging.info("--- The database is successfully completed! ---")
+        logging.info("Database migration completed.")
 
     except sqlite3.Error as e:
-        logging.error(f"An error occurred during migration: {e}")
+        logging.error(f"Migration error: {e}")
+
 
 def create_new_transactions_table(cursor: sqlite3.Cursor):
     cursor.execute('''
@@ -200,18 +183,16 @@ def create_new_transactions_table(cursor: sqlite3.Cursor):
         )
     ''')
 
+
 def create_plan(plan_name: str, days: int, price: float):
     try:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
-            cursor.execute(
-                "INSERT INTO plans (plan_name, days, price) VALUES (?, ?, ?)",
-                (plan_name, days, price)
-            )
+            cursor.execute("INSERT INTO plans (plan_name, days, price) VALUES (?, ?, ?)", (plan_name, days, price))
             conn.commit()
-            logging.info(f"Created new plan '{plan_name}'.")
     except sqlite3.Error as e:
         logging.error(f"Failed to create plan: {e}")
+
 
 def delete_plan(plan_id: int):
     try:
@@ -219,9 +200,8 @@ def delete_plan(plan_id: int):
             cursor = conn.cursor()
             cursor.execute("DELETE FROM plans WHERE plan_id = ?", (plan_id,))
             conn.commit()
-            logging.info(f"Deleted plan with id {plan_id}.")
     except sqlite3.Error as e:
-        logging.error(f"Failed to delete plan with id {plan_id}: {e}")
+        logging.error(f"Failed to delete plan {plan_id}: {e}")
 
 
 def get_all_plans() -> list[dict]:
@@ -230,11 +210,11 @@ def get_all_plans() -> list[dict]:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM plans ORDER BY days")
-            plans = cursor.fetchall()
-            return [dict(plan) for plan in plans]
+            return [dict(plan) for plan in cursor.fetchall()]
     except sqlite3.Error as e:
-        logging.error(f"Failed to get all plans: {e}")
+        logging.error(f"Failed to get plans: {e}")
         return []
+
 
 def get_plan_by_id(plan_id: int) -> dict | None:
     try:
@@ -245,8 +225,9 @@ def get_plan_by_id(plan_id: int) -> dict | None:
             plan = cursor.fetchone()
             return dict(plan) if plan else None
     except sqlite3.Error as e:
-        logging.error(f"Failed to get plan by id '{plan_id}': {e}")
+        logging.error(f"Failed to get plan {plan_id}: {e}")
         return None
+
 
 def get_all_keys() -> list[dict]:
     try:
@@ -256,8 +237,9 @@ def get_all_keys() -> list[dict]:
             cursor.execute("SELECT * FROM vpn_keys")
             return [dict(row) for row in cursor.fetchall()]
     except sqlite3.Error as e:
-        logging.error(f"Failed to get all keys: {e}")
+        logging.error(f"Failed to get keys: {e}")
         return []
+
 
 def get_setting(key: str) -> str | None:
     try:
@@ -269,7 +251,8 @@ def get_setting(key: str) -> str | None:
     except sqlite3.Error as e:
         logging.error(f"Failed to get setting '{key}': {e}")
         return None
-        
+
+
 def get_all_settings() -> dict:
     settings = {}
     try:
@@ -277,12 +260,12 @@ def get_all_settings() -> dict:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute("SELECT key, value FROM bot_settings")
-            rows = cursor.fetchall()
-            for row in rows:
+            for row in cursor.fetchall():
                 settings[row['key']] = row['value']
     except sqlite3.Error as e:
-        logging.error(f"Failed to get all settings: {e}")
+        logging.error(f"Failed to get settings: {e}")
     return settings
+
 
 def update_setting(key: str, value: str):
     try:
@@ -290,9 +273,9 @@ def update_setting(key: str, value: str):
             cursor = conn.cursor()
             cursor.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES (?, ?)", (key, value))
             conn.commit()
-            logging.info(f"Setting '{key}' updated.")
     except sqlite3.Error as e:
         logging.error(f"Failed to update setting '{key}': {e}")
+
 
 def register_user_if_not_exists(telegram_id: int, username: str, referrer_id):
     try:
@@ -310,6 +293,7 @@ def register_user_if_not_exists(telegram_id: int, username: str, referrer_id):
     except sqlite3.Error as e:
         logging.error(f"Failed to register user {telegram_id}: {e}")
 
+
 def add_to_referral_balance(user_id: int, amount: float):
     try:
         with sqlite3.connect(DB_FILE) as conn:
@@ -317,7 +301,8 @@ def add_to_referral_balance(user_id: int, amount: float):
             cursor.execute("UPDATE users SET referral_balance = referral_balance + ? WHERE telegram_id = ?", (amount, user_id))
             conn.commit()
     except sqlite3.Error as e:
-        logging.error(f"Failed to add to referral balance for user {user_id}: {e}")
+        logging.error(f"Failed to add referral balance for {user_id}: {e}")
+
 
 def set_referral_balance(user_id: int, value: float):
     try:
@@ -326,7 +311,8 @@ def set_referral_balance(user_id: int, value: float):
             cursor.execute("UPDATE users SET referral_balance = ? WHERE telegram_id = ?", (value, user_id))
             conn.commit()
     except sqlite3.Error as e:
-        logging.error(f"Failed to set referral balance for user {user_id}: {e}")
+        logging.error(f"Failed to set referral balance for {user_id}: {e}")
+
 
 def set_referral_balance_all(user_id: int, value: float):
     try:
@@ -335,7 +321,8 @@ def set_referral_balance_all(user_id: int, value: float):
             cursor.execute("UPDATE users SET referral_balance_all = ? WHERE telegram_id = ?", (value, user_id))
             conn.commit()
     except sqlite3.Error as e:
-        logging.error(f"Failed to set total referral balance for user {user_id}: {e}")
+        logging.error(f"Failed to set total referral balance for {user_id}: {e}")
+
 
 def get_referral_balance(user_id: int) -> float:
     try:
@@ -345,8 +332,9 @@ def get_referral_balance(user_id: int) -> float:
             result = cursor.fetchone()
             return result[0] if result else 0.0
     except sqlite3.Error as e:
-        logging.error(f"Failed to get referral balance for user {user_id}: {e}")
+        logging.error(f"Failed to get referral balance for {user_id}: {e}")
         return 0.0
+
 
 def get_referral_count(user_id: int) -> int:
     try:
@@ -355,8 +343,9 @@ def get_referral_count(user_id: int) -> int:
             cursor.execute("SELECT COUNT(*) FROM users WHERE referred_by = ?", (user_id,))
             return cursor.fetchone()[0] or 0
     except sqlite3.Error as e:
-        logging.error(f"Failed to get referral count for user {user_id}: {e}")
+        logging.error(f"Failed to get referral count for {user_id}: {e}")
         return 0
+
 
 def get_user(telegram_id: int):
     try:
@@ -370,24 +359,29 @@ def get_user(telegram_id: int):
         logging.error(f"Failed to get user {telegram_id}: {e}")
         return None
 
+
 def set_terms_agreed(telegram_id: int):
     try:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
             cursor.execute("UPDATE users SET agreed_to_terms = 1 WHERE telegram_id = ?", (telegram_id,))
             conn.commit()
-            logging.info(f"User {telegram_id} has agreed to terms.")
     except sqlite3.Error as e:
-        logging.error(f"Failed to set terms agreed for user {telegram_id}: {e}")
+        logging.error(f"Failed to set terms agreed for {telegram_id}: {e}")
+
 
 def update_user_stats(telegram_id: int, amount_spent: float, months_purchased: int):
     try:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
-            cursor.execute("UPDATE users SET total_spent = total_spent + ?, total_months = total_months + ? WHERE telegram_id = ?", (amount_spent, months_purchased, telegram_id))
+            cursor.execute(
+                "UPDATE users SET total_spent = total_spent + ?, total_months = total_months + ? WHERE telegram_id = ?",
+                (amount_spent, months_purchased, telegram_id)
+            )
             conn.commit()
     except sqlite3.Error as e:
-        logging.error(f"Failed to update user stats for {telegram_id}: {e}")
+        logging.error(f"Failed to update stats for {telegram_id}: {e}")
+
 
 def get_user_count() -> int:
     try:
@@ -399,6 +393,7 @@ def get_user_count() -> int:
         logging.error(f"Failed to get user count: {e}")
         return 0
 
+
 def get_total_keys_count() -> int:
     try:
         with sqlite3.connect(DB_FILE) as conn:
@@ -406,8 +401,9 @@ def get_total_keys_count() -> int:
             cursor.execute("SELECT COUNT(*) FROM vpn_keys")
             return cursor.fetchone()[0] or 0
     except sqlite3.Error as e:
-        logging.error(f"Failed to get total keys count: {e}")
+        logging.error(f"Failed to get keys count: {e}")
         return 0
+
 
 def get_total_spent_sum() -> float:
     try:
@@ -416,8 +412,9 @@ def get_total_spent_sum() -> float:
             cursor.execute("SELECT SUM(total_spent) FROM users")
             return cursor.fetchone()[0] or 0.0
     except sqlite3.Error as e:
-        logging.error(f"Failed to get total spent sum: {e}")
+        logging.error(f"Failed to get total spent: {e}")
         return 0.0
+
 
 def create_pending_transaction(payment_id: str, user_id: int, amount_rub: float, metadata: dict) -> int:
     try:
@@ -433,31 +430,34 @@ def create_pending_transaction(payment_id: str, user_id: int, amount_rub: float,
         logging.error(f"Failed to create pending transaction: {e}")
         return 0
 
+
 def find_and_complete_ton_transaction(payment_id: str, amount_ton: float) -> dict | None:
     try:
         with sqlite3.connect(DB_FILE) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            
+
             cursor.execute("SELECT * FROM transactions WHERE payment_id = ? AND status = 'pending'", (payment_id,))
             transaction = cursor.fetchone()
             if not transaction:
-                logger.warning(f"TON Webhook: Received payment for unknown or completed payment_id: {payment_id}")
+                logger.warning(f"TON Webhook: Unknown payment_id: {payment_id}")
                 return None
-            
-            
+
             cursor.execute(
                 "UPDATE transactions SET status = 'paid', amount_currency = ?, currency_name = 'TON', payment_method = 'TON' WHERE payment_id = ?",
                 (amount_ton, payment_id)
             )
             conn.commit()
-            
+
             return json.loads(transaction['metadata'])
     except sqlite3.Error as e:
         logging.error(f"Failed to complete TON transaction {payment_id}: {e}")
         return None
 
-def log_transaction(username: str, transaction_id: str | None, payment_id: str | None, user_id: int, status: str, amount_rub: float, amount_currency: float | None, currency_name: str | None, payment_method: str, metadata: str):
+
+def log_transaction(username: str, transaction_id: str | None, payment_id: str | None, user_id: int, status: str,
+                    amount_rub: float, amount_currency: float | None, currency_name: str | None,
+                    payment_method: str, metadata: str):
     try:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
@@ -469,7 +469,8 @@ def log_transaction(username: str, transaction_id: str | None, payment_id: str |
             )
             conn.commit()
     except sqlite3.Error as e:
-        logging.error(f"Failed to log transaction for user {user_id}: {e}")
+        logging.error(f"Failed to log transaction for {user_id}: {e}")
+
 
 def get_paginated_transactions(page: int = 1, per_page: int = 15) -> tuple[list[dict], int]:
     offset = (page - 1) * per_page
@@ -479,16 +480,14 @@ def get_paginated_transactions(page: int = 1, per_page: int = 15) -> tuple[list[
         with sqlite3.connect(DB_FILE) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            
+
             cursor.execute("SELECT COUNT(*) FROM transactions")
             total = cursor.fetchone()[0]
 
-            query = "SELECT * FROM transactions ORDER BY created_date DESC LIMIT ? OFFSET ?"
-            cursor.execute(query, (per_page, offset))
-            
+            cursor.execute("SELECT * FROM transactions ORDER BY created_date DESC LIMIT ? OFFSET ?", (per_page, offset))
+
             for row in cursor.fetchall():
                 transaction_dict = dict(row)
-                
                 metadata_str = transaction_dict.get('metadata')
                 if metadata_str:
                     try:
@@ -501,13 +500,13 @@ def get_paginated_transactions(page: int = 1, per_page: int = 15) -> tuple[list[
                 else:
                     transaction_dict['host_name'] = 'N/A'
                     transaction_dict['plan_name'] = 'N/A'
-                
                 transactions.append(transaction_dict)
-            
+
     except sqlite3.Error as e:
-        logging.error(f"Failed to get paginated transactions: {e}")
-    
+        logging.error(f"Failed to get transactions: {e}")
+
     return transactions, total
+
 
 def set_trial_used(telegram_id: int):
     try:
@@ -515,9 +514,9 @@ def set_trial_used(telegram_id: int):
             cursor = conn.cursor()
             cursor.execute("UPDATE users SET trial_used = 1 WHERE telegram_id = ?", (telegram_id,))
             conn.commit()
-            logging.info(f"Trial period marked as used for user {telegram_id}.")
     except sqlite3.Error as e:
-        logging.error(f"Failed to set trial used for user {telegram_id}: {e}")
+        logging.error(f"Failed to set trial used for {telegram_id}: {e}")
+
 
 def add_new_key(user_id: int, subscription_link: str, expiry_timestamp_ms: int):
     try:
@@ -532,8 +531,9 @@ def add_new_key(user_id: int, subscription_link: str, expiry_timestamp_ms: int):
             conn.commit()
             return new_key_id
     except sqlite3.Error as e:
-        logging.error(f"Failed to add new key for user {user_id}: {e}")
+        logging.error(f"Failed to add key for {user_id}: {e}")
         return None
+
 
 def delete_key_by_id(key_id: int):
     try:
@@ -542,7 +542,8 @@ def delete_key_by_id(key_id: int):
             cursor.execute("DELETE FROM vpn_keys WHERE key_id = ?", (key_id,))
             conn.commit()
     except sqlite3.Error as e:
-        logging.error(f"Failed to delete key '{key_id}': {e}")
+        logging.error(f"Failed to delete key {key_id}: {e}")
+
 
 def get_user_keys(user_id: int):
     try:
@@ -550,11 +551,11 @@ def get_user_keys(user_id: int):
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM vpn_keys WHERE user_id = ? ORDER BY key_id", (user_id,))
-            keys = cursor.fetchall()
-            return [dict(key) for key in keys]
+            return [dict(key) for key in cursor.fetchall()]
     except sqlite3.Error as e:
-        logging.error(f"Failed to get keys for user {user_id}: {e}")
+        logging.error(f"Failed to get keys for {user_id}: {e}")
         return []
+
 
 def get_key_by_id(key_id: int):
     try:
@@ -565,22 +566,25 @@ def get_key_by_id(key_id: int):
             key_data = cursor.fetchone()
             return dict(key_data) if key_data else None
     except sqlite3.Error as e:
-        logging.error(f"Failed to get key by ID {key_id}: {e}")
+        logging.error(f"Failed to get key {key_id}: {e}")
         return None
+
 
 def update_key_info(key_id: int, subscription_link: str, new_expiry_ms: int):
     try:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
             expiry_date = datetime.fromtimestamp(new_expiry_ms / 1000)
-            cursor.execute("UPDATE vpn_keys SET subscription_link = ?, expiry_date = ? WHERE key_id = ?", (subscription_link, expiry_date, key_id))
+            cursor.execute("UPDATE vpn_keys SET subscription_link = ?, expiry_date = ? WHERE key_id = ?",
+                           (subscription_link, expiry_date, key_id))
             conn.commit()
     except sqlite3.Error as e:
         logging.error(f"Failed to update key {key_id}: {e}")
 
+
 def get_next_key_number(user_id: int) -> int:
-    keys = get_user_keys(user_id)
-    return len(keys) + 1
+    return len(get_user_keys(user_id)) + 1
+
 
 def get_all_vpn_users():
     try:
@@ -588,40 +592,35 @@ def get_all_vpn_users():
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute("SELECT DISTINCT user_id FROM vpn_keys")
-            users = cursor.fetchall()
-            return [dict(user) for user in users]
+            return [dict(user) for user in cursor.fetchall()]
     except sqlite3.Error as e:
-        logging.error(f"Failed to get all vpn users: {e}")
+        logging.error(f"Failed to get vpn users: {e}")
         return []
+
 
 def get_daily_stats_for_charts(days: int = 30) -> dict:
     stats = {'users': {}, 'keys': {}}
     try:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
-            query_users = """
+
+            cursor.execute("""
                 SELECT date(registration_date) as day, COUNT(*)
-                FROM users
-                WHERE registration_date >= date('now', ?)
-                GROUP BY day
-                ORDER BY day;
-            """
-            cursor.execute(query_users, (f'-{days} days',))
+                FROM users WHERE registration_date >= date('now', ?)
+                GROUP BY day ORDER BY day
+            """, (f'-{days} days',))
             for row in cursor.fetchall():
                 stats['users'][row[0]] = row[1]
-            
-            query_keys = """
+
+            cursor.execute("""
                 SELECT date(created_date) as day, COUNT(*)
-                FROM vpn_keys
-                WHERE created_date >= date('now', ?)
-                GROUP BY day
-                ORDER BY day;
-            """
-            cursor.execute(query_keys, (f'-{days} days',))
+                FROM vpn_keys WHERE created_date >= date('now', ?)
+                GROUP BY day ORDER BY day
+            """, (f'-{days} days',))
             for row in cursor.fetchall():
                 stats['keys'][row[0]] = row[1]
     except sqlite3.Error as e:
-        logging.error(f"Failed to get daily stats for charts: {e}")
+        logging.error(f"Failed to get chart stats: {e}")
     return stats
 
 
@@ -631,23 +630,16 @@ def get_recent_transactions(limit: int = 15) -> list[dict]:
         with sqlite3.connect(DB_FILE) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            query = """
-                SELECT
-                    k.key_id,
-                    k.host_name,
-                    k.created_date,
-                    u.telegram_id,
-                    u.username
-                FROM vpn_keys k
-                JOIN users u ON k.user_id = u.telegram_id
-                ORDER BY k.created_date DESC
-                LIMIT ?;
-            """
-            cursor.execute(query, (limit,))
+            cursor.execute("""
+                SELECT k.key_id, k.host_name, k.created_date, u.telegram_id, u.username
+                FROM vpn_keys k JOIN users u ON k.user_id = u.telegram_id
+                ORDER BY k.created_date DESC LIMIT ?
+            """, (limit,))
             transactions = [dict(row) for row in cursor.fetchall()]
     except sqlite3.Error as e:
         logging.error(f"Failed to get recent transactions: {e}")
     return transactions
+
 
 def add_support_thread(user_id: int, thread_id: int):
     try:
@@ -656,7 +648,8 @@ def add_support_thread(user_id: int, thread_id: int):
             cursor.execute("INSERT OR REPLACE INTO support_threads (user_id, thread_id) VALUES (?, ?)", (user_id, thread_id))
             conn.commit()
     except sqlite3.Error as e:
-        logging.error(f"Failed to add support thread for user {user_id}: {e}")
+        logging.error(f"Failed to add support thread for {user_id}: {e}")
+
 
 def get_support_thread_id(user_id: int) -> int | None:
     try:
@@ -666,8 +659,9 @@ def get_support_thread_id(user_id: int) -> int | None:
             result = cursor.fetchone()
             return result[0] if result else None
     except sqlite3.Error as e:
-        logging.error(f"Failed to get support thread_id for user {user_id}: {e}")
+        logging.error(f"Failed to get support thread for {user_id}: {e}")
         return None
+
 
 def get_user_id_by_thread(thread_id: int) -> int | None:
     try:
@@ -677,8 +671,9 @@ def get_user_id_by_thread(thread_id: int) -> int | None:
             result = cursor.fetchone()
             return result[0] if result else None
     except sqlite3.Error as e:
-        logging.error(f"Failed to get user_id for thread {thread_id}: {e}")
+        logging.error(f"Failed to get user for thread {thread_id}: {e}")
         return None
+
 
 def get_latest_transaction(user_id: int) -> dict | None:
     try:
@@ -689,8 +684,9 @@ def get_latest_transaction(user_id: int) -> dict | None:
             transaction = cursor.fetchone()
             return dict(transaction) if transaction else None
     except sqlite3.Error as e:
-        logging.error(f"Failed to get latest transaction for user {user_id}: {e}")
+        logging.error(f"Failed to get latest transaction for {user_id}: {e}")
         return None
+
 
 def get_all_users() -> list[dict]:
     try:
@@ -700,8 +696,9 @@ def get_all_users() -> list[dict]:
             cursor.execute("SELECT * FROM users ORDER BY registration_date DESC")
             return [dict(row) for row in cursor.fetchall()]
     except sqlite3.Error as e:
-        logging.error(f"Failed to get all users: {e}")
+        logging.error(f"Failed to get users: {e}")
         return []
+
 
 def ban_user(telegram_id: int):
     try:
@@ -712,6 +709,7 @@ def ban_user(telegram_id: int):
     except sqlite3.Error as e:
         logging.error(f"Failed to ban user {telegram_id}: {e}")
 
+
 def unban_user(telegram_id: int):
     try:
         with sqlite3.connect(DB_FILE) as conn:
@@ -721,6 +719,7 @@ def unban_user(telegram_id: int):
     except sqlite3.Error as e:
         logging.error(f"Failed to unban user {telegram_id}: {e}")
 
+
 def delete_user_keys(user_id: int):
     try:
         with sqlite3.connect(DB_FILE) as conn:
@@ -728,4 +727,4 @@ def delete_user_keys(user_id: int):
             cursor.execute("DELETE FROM vpn_keys WHERE user_id = ?", (user_id,))
             conn.commit()
     except sqlite3.Error as e:
-        logging.error(f"Failed to delete keys for user {user_id}: {e}")
+        logging.error(f"Failed to delete keys for {user_id}: {e}")

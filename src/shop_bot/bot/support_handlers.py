@@ -11,7 +11,6 @@ logger = logging.getLogger(__name__)
 
 SUPPORT_GROUP_ID = None
 
-router = Router()
 
 async def get_user_summary(user_id: int, username: str) -> str:
     keys = database.get_user_keys(user_id)
@@ -40,6 +39,8 @@ async def get_user_summary(user_id: int, username: str) -> str:
         summary_parts.append("\n<b>💸 Последняя транзакция:</b> Нет")
 
     return "\n".join(summary_parts)
+
+
 def get_support_router() -> Router:
     support_router = Router()
 
@@ -47,9 +48,9 @@ def get_support_router() -> Router:
     async def handle_start(message: types.Message, bot: Bot):
         user_id = message.from_user.id
         username = message.from_user.username or message.from_user.full_name
-        
+
         thread_id = database.get_support_thread_id(user_id)
-        
+
         if not thread_id:
             if not SUPPORT_GROUP_ID:
                 logger.error("Support bot: SUPPORT_GROUP_ID is not configured!")
@@ -60,9 +61,9 @@ def get_support_router() -> Router:
                 thread_name = f"Тикет от @{username} ({user_id})"
                 new_thread = await bot.create_forum_topic(chat_id=SUPPORT_GROUP_ID, name=thread_name)
                 thread_id = new_thread.message_thread_id
-                
+
                 database.add_support_thread(user_id, thread_id)
-                
+
                 summary_text = await get_user_summary(user_id, username)
                 await bot.send_message(
                     chat_id=SUPPORT_GROUP_ID,
@@ -71,7 +72,7 @@ def get_support_router() -> Router:
                     parse_mode=ParseMode.HTML
                 )
                 logger.info(f"Created new support thread {thread_id} for user {user_id}")
-                
+
             except Exception as e:
                 logger.error(f"Failed to create support thread for user {user_id}: {e}", exc_info=True)
                 await message.answer("Не удалось создать тикет в поддержке. Пожалуйста, попробуйте позже.")
@@ -83,7 +84,7 @@ def get_support_router() -> Router:
     async def from_user_to_admin(message: types.Message, bot: Bot):
         user_id = message.from_user.id
         thread_id = database.get_support_thread_id(user_id)
-        
+
         if thread_id and SUPPORT_GROUP_ID:
             await bot.copy_message(
                 chat_id=SUPPORT_GROUP_ID,
@@ -98,10 +99,10 @@ def get_support_router() -> Router:
     async def from_admin_to_user(message: types.Message, bot: Bot):
         thread_id = message.message_thread_id
         user_id = database.get_user_id_by_thread(thread_id)
-        
+
         if message.from_user.id == bot.id:
             return
-            
+
         if user_id:
             try:
                 await bot.copy_message(
@@ -111,5 +112,6 @@ def get_support_router() -> Router:
                 )
             except Exception as e:
                 logger.error(f"Failed to send message from thread {thread_id} to user {user_id}: {e}")
-                await message.reply("❌ Не удалось доставить сообщение этому пользователю (возможно, он заблокировал бота).")
+                await message.reply("❌ Не удалось доставить сообщение этому пользователю.")
+
     return support_router

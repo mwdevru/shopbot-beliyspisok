@@ -5,10 +5,11 @@
 ### Telegram-бот для реселлинга VPN подписок
 
 [![Fork](https://img.shields.io/badge/Fork%20of-vless--shopbot-blue)](https://github.com/evansvl/vless-shopbot)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
 **Данный проект является форком [evansvl/vless-shopbot](https://github.com/evansvl/vless-shopbot)**
 
-Переработан для работы через API [vpn.mwshark.host](https://vpn.mwshark.host)
+Переработан для работы через MW API
 
 </div>
 
@@ -16,11 +17,11 @@
 
 ## О проекте
 
-VPN Reseller Bot — решение для автоматизированной продажи VPN-подписок через Telegram без необходимости иметь собственные VPN-серверы. Бот работает через API vpn.mwshark.host и предоставляет удобную веб-панель для управления.
+VPN Reseller Bot — решение для автоматизированной продажи VPN-подписок через Telegram без необходимости иметь собственные VPN-серверы. Бот работает через MW API и предоставляет удобную веб-панель для управления.
 
 ## Возможности
 
-- **Реселлинг через API** — не нужен свой VPN-сервер, всё работает через API
+- **Реселлинг через MW API** — не нужен свой VPN-сервер
 - **Веб-панель** — управление тарифами, пользователями и настройками
 - **Гибкие тарифы** — создавайте планы на любое количество дней (1-365)
 - **Платежные системы:**
@@ -35,8 +36,8 @@ VPN Reseller Bot — решение для автоматизированной 
 
 - Сервер Ubuntu/Debian с SSH доступом
 - Доменное имя с DNS A-записью на IP сервера
-- API ключ от [vpn.mwshark.host](https://vpn.mwshark.host)
-- Баланс на аккаунте vpn.mwshark.host
+- API ключ от [@mwvpnbot](https://t.me/mwvpnbot)
+- Баланс на аккаунте MW VPN
 
 ## Установка
 
@@ -49,7 +50,7 @@ ssh root@your-server-ip
 ### 2. Запустите установщик
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/mwshark/vpn-reseller-bot/main/install.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/mwdevru/shopbot-beliyspisok/main/install.sh | sudo bash
 ```
 
 ### 3. Следуйте инструкциям
@@ -64,8 +65,8 @@ curl -sSL https://raw.githubusercontent.com/mwshark/vpn-reseller-bot/main/instal
 
 ### Шаг 1: Получите API ключ
 
-1. Перейдите на [vpn.mwshark.host](https://vpn.mwshark.host)
-2. Зарегистрируйтесь и получите API ключ
+1. Перейдите в бот [@mwvpnbot](https://t.me/mwvpnbot)
+2. Получите API ключ в разделе API
 3. Пополните баланс
 
 ### Шаг 2: Настройте панель
@@ -78,7 +79,7 @@ curl -sSL https://raw.githubusercontent.com/mwshark/vpn-reseller-bot/main/instal
 
 В разделе "Настройки" укажите:
 
-- **API Ключ MWShark** — ключ от vpn.mwshark.host
+- **API Ключ MW API** — ключ от [@mwvpnbot](https://t.me/mwvpnbot)
 - **Токен бота** — получите у [@BotFather](https://t.me/BotFather)
 - **Username бота** — без символа @
 - **Telegram ID администратора** — узнайте у [@userinfobot](https://t.me/userinfobot)
@@ -125,40 +126,40 @@ curl -sSL https://raw.githubusercontent.com/mwshark/vpn-reseller-bot/main/instal
 ### Просмотр логов
 
 ```bash
-cd vpn-reseller-bot
+cd shopbot-beliyspisok
 docker-compose logs -f
 ```
 
 ### Перезапуск
 
 ```bash
-cd vpn-reseller-bot
+cd shopbot-beliyspisok
 docker-compose restart
 ```
 
 ### Остановка
 
 ```bash
-cd vpn-reseller-bot
+cd shopbot-beliyspisok
 docker-compose down
 ```
 
 ### Обновление
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/mwshark/vpn-reseller-bot/main/install.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/mwdevru/shopbot-beliyspisok/main/install.sh | sudo bash
 ```
 
 ## Структура проекта
 
 ```
-vpn-reseller-bot/
+shopbot-beliyspisok/
 ├── src/shop_bot/
 │   ├── bot/              # Telegram бот
 │   │   ├── handlers.py   # Обработчики команд
 │   │   └── keyboards.py  # Клавиатуры
 │   ├── modules/
-│   │   └── mwshark_api.py # API клиент
+│   │   └── mwshark_api.py # MW API клиент
 │   ├── data_manager/
 │   │   └── database.py   # Работа с БД
 │   └── webhook_server/   # Веб-панель
@@ -167,7 +168,7 @@ vpn-reseller-bot/
 └── install.sh
 ```
 
-## API vpn.mwshark.host
+## MW API
 
 Документация API: [vpn.mwshark.host/api/docs](https://vpn.mwshark.host/api/docs)
 
@@ -180,7 +181,7 @@ vpn-reseller-bot/
 
 ## Лицензия
 
-MIT License — см. файл [LICENSE](LICENSE)
+GNU General Public License v3.0 — см. файл [LICENSE](LICENSE)
 
 ---
 

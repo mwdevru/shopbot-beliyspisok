@@ -4,7 +4,7 @@ import logging
 from yookassa import Configuration
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
-from aiogram.enums import ParseMode 
+from aiogram.enums import ParseMode
 
 from shop_bot.data_manager import database
 from shop_bot.bot.handlers import get_user_router
@@ -14,15 +14,14 @@ from shop_bot.bot.support_handlers import get_support_router
 
 logger = logging.getLogger(__name__)
 
+
 class BotController:
     def __init__(self):
         self._loop = None
-
         self.shop_bot = None
         self.shop_dp = None
         self.shop_task = None
         self.shop_is_running = False
-
         self.support_bot = None
         self.support_dp = None
         self.support_task = None
@@ -35,7 +34,6 @@ class BotController:
     def get_bot_instance(self) -> Bot | None:
         return self.shop_bot
 
-    
     async def _start_polling(self, bot, dp, name):
         logger.info(f"BotController: Polling task for '{name}' has been started.")
         try:
@@ -62,7 +60,7 @@ class BotController:
     def start_shop_bot(self):
         if self.shop_is_running:
             return {"status": "error", "message": "Бот уже запущен."}
-        
+
         if not self._loop or not self._loop.is_running():
             return {"status": "error", "message": "Критическая ошибка: цикл событий не установлен."}
 
@@ -73,7 +71,7 @@ class BotController:
         if not all([token, bot_username, admin_id]):
             return {
                 "status": "error",
-                "message": "Невозможно запустить: не все обязательные настройки Telegram заполнены (токен, username, ID админа)."
+                "message": "Невозможно запустить: не все обязательные настройки Telegram заполнены."
             }
 
         try:
@@ -94,7 +92,7 @@ class BotController:
             heleket_shop_id = database.get_setting("heleket_merchant_id")
             heleket_api_key = database.get_setting("heleket_api_key")
             heleket_enabled = bool(heleket_api_key and heleket_shop_id)
-            
+
             ton_wallet_address = database.get_setting("ton_wallet_address")
             tonapi_key = database.get_setting("tonapi_key")
             tonconnect_enabled = bool(ton_wallet_address and tonapi_key)
@@ -102,7 +100,7 @@ class BotController:
             if yookassa_enabled:
                 Configuration.account_id = yookassa_shop_id
                 Configuration.secret_key = yookassa_secret_key
-            
+
             handlers.PAYMENT_METHODS = {
                 "yookassa": yookassa_enabled,
                 "heleket": heleket_enabled,
@@ -112,10 +110,12 @@ class BotController:
             handlers.TELEGRAM_BOT_USERNAME = bot_username
             handlers.ADMIN_ID = admin_id
 
-            self.shop_task = asyncio.run_coroutine_threadsafe(self._start_polling(self.shop_bot, self.shop_dp, "ShopBot"), self._loop)
+            self.shop_task = asyncio.run_coroutine_threadsafe(
+                self._start_polling(self.shop_bot, self.shop_dp, "ShopBot"), self._loop
+            )
             logger.info("BotController: Start command sent to event loop.")
             return {"status": "success", "message": "Команда на запуск бота отправлена."}
-            
+
         except Exception as e:
             logger.error(f"Failed to start bot: {e}", exc_info=True)
             self.shop_bot = None
@@ -125,20 +125,20 @@ class BotController:
     def start_support_bot(self):
         if self.support_is_running:
             return {"status": "error", "message": "Бот-Саппорт уже запущен."}
-            
+
         token = database.get_setting("support_bot_token")
         group_id = database.get_setting("support_group_id")
-        
+
         if not token or not group_id:
             return {"status": "error", "message": "Токен для Бота-Саппорта и Айди группы не указаны."}
 
         try:
             self.support_bot = Bot(token=token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
             self.support_dp = Dispatcher()
-            
+
             support_handlers.SUPPORT_GROUP_ID = int(group_id)
             support_handlers.user_bot = self.shop_bot
-            
+
             support_router = get_support_router()
             self.support_dp.include_router(support_router)
 
@@ -161,12 +161,11 @@ class BotController:
             return {"status": "error", "message": "Критическая ошибка: компоненты бота недоступны."}
 
         self.shop_is_running = False
-
         logger.info("BotController: Sending graceful stop signal...")
         asyncio.run_coroutine_threadsafe(self.shop_dp.stop_polling(), self._loop)
 
         return {"status": "success", "message": "Команда на остановку бота отправлена."}
-    
+
     def stop_support_bot(self):
         if not self.support_is_running:
             return {"status": "error", "message": "Бот не запущен."}
@@ -175,13 +174,13 @@ class BotController:
             return {"status": "error", "message": "Критическая ошибка: компоненты бота недоступны."}
 
         self.support_is_running = False
-
         logger.info("BotController: Sending graceful stop signal...")
         asyncio.run_coroutine_threadsafe(self.support_dp.stop_polling(), self._loop)
 
         return {"status": "success", "message": "Команда на остановку бота отправлена."}
 
     def get_status(self):
-        return {"shop_bot_running": self.shop_is_running,
-                "support_bot_running": self.support_is_running
-            }
+        return {
+            "shop_bot_running": self.shop_is_running,
+            "support_bot_running": self.support_is_running
+        }
