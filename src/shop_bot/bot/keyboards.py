@@ -114,6 +114,11 @@ def create_payment_method_keyboard(action: str, key_id: int) -> InlineKeyboardMa
     if heleket_merchant_id and heleket_api_key:
         builder.button(text="💎 Криптовалюта", callback_data="pay_heleket")
 
+    platega_merchant_id = get_setting("platega_merchant_id")
+    platega_secret_key = get_setting("platega_secret_key")
+    if platega_merchant_id and platega_secret_key:
+        builder.button(text="💳 Platega (Карта/СБП)", callback_data="pay_platega")
+
     cryptobot_token = get_setting("cryptobot_token")
     if cryptobot_token:
         builder.button(text="🤖 CryptoBot", callback_data="pay_cryptobot")

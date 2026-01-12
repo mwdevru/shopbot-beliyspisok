@@ -155,6 +155,21 @@
 <input type="text" name="domain" class="form-input" value="{{ settings.domain or '' }}" placeholder="my-shop.com">
 </div>
 </div>
+<div class="section">
+<div class="section-title">Platega</div>
+<p style="font-size:.8rem;color:var(--text-muted);margin-bottom:12px">Карта / СБП через <a href="https://platega.io" target="_blank">platega.io</a></p>
+<div class="form-group">
+<label class="form-label">Merchant ID</label>
+<input type="text" name="platega_merchant_id" class="form-input" value="{{ settings.platega_merchant_id or '' }}">
+</div>
+<div class="form-group">
+<label class="form-label">Secret Key</label>
+<div class="password-wrap">
+<input type="password" name="platega_secret_key" class="form-input" value="{{ settings.platega_secret_key or '' }}">
+<button type="button" class="toggle-pass">👁</button>
+</div>
+</div>
+</div>
 </div>
 <div class="card" style="margin-bottom:24px">
 <div class="card-title">Контент</div>

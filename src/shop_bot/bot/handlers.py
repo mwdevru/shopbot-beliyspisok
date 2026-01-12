@@ -928,6 +928,40 @@ def get_user_router() -> Router:
         else:
             await callback.message.edit_text("❌ Ошибка Heleket.")
 
+    @user_router.callback_query(PaymentProcess.waiting_for_payment_method, F.data == "pay_platega")
+    async def create_platega_invoice_handler(callback: types.CallbackQuery, state: FSMContext):
+        await callback.answer("Создаю счет...")
+        data = await state.get_data()
+        plan = get_plan_by_id(data.get('plan_id'))
+        user_data = get_user(callback.from_user.id)
+
+        if not plan:
+            await callback.message.edit_text("❌ Ошибка тарифа.")
+            await state.clear()
+            return
+
+        base_price = Decimal(str(plan['price']))
+        price_rub = base_price
+
+        if user_data.get('referred_by') and user_data.get('total_spent', 0) == 0:
+            discount = Decimal(get_setting("referral_discount") or "0")
+            if discount > 0:
+                price_rub = base_price - (base_price * discount / 100).quantize(Decimal("0.01"))
+
+        result = await _create_platega_payment(
+            user_id=callback.from_user.id,
+            price=float(price_rub),
+            days=plan['days'],
+            state_data=data
+        )
+
+        if result and result.get('redirect'):
+            await callback.message.edit_text("Нажмите для оплаты:", reply_markup=keyboards.create_payment_keyboard(result['redirect']))
+            await state.clear()
+        else:
+            await callback.message.edit_text("❌ Ошибка Platega.")
+            await state.clear()
+
     @user_router.message(F.text)
     @registration_required
     async def unknown_message_handler(message: types.Message):
@@ -1038,6 +1072,78 @@ def _generate_heleket_signature(data, api_key: str) -> str:
     data_str = json.dumps(data, separators=(",", ":"), ensure_ascii=False) if isinstance(data, dict) else str(data)
     base64_encoded = base64.b64encode(data_str.encode()).decode()
     return hashlib.md5(f"{base64_encoded}{api_key}".encode()).hexdigest()
+
+
+async def _create_platega_payment(user_id: int, price: float, days: int, state_data: dict) -> dict | None:
+    merchant_id = get_setting("platega_merchant_id")
+    secret_key = get_setting("platega_secret_key")
+    bot_username = get_setting("telegram_bot_username")
+    domain = get_setting("domain")
+
+    if not all([merchant_id, secret_key]):
+        logger.error("Platega: Missing settings.")
+        return None
+
+    return_url = f"https://t.me/{bot_username}" if bot_username else "https://t.me"
+
+    metadata = {
+        "user_id": user_id, "days": days, "price": float(price),
+        "action": state_data.get('action'), "key_id": state_data.get('key_id'),
+        "plan_id": state_data.get('plan_id'),
+        "customer_email": state_data.get('customer_email'), "payment_method": "Platega"
+    }
+
+    payload = {
+        "paymentMethod": 2,
+        "paymentDetails": {"amount": int(price), "currency": "RUB"},
+        "description": f"Подписка на {days} дн.",
+        "return": return_url,
+        "failedUrl": return_url,
+        "payload": json.dumps(metadata)
+    }
+
+    headers = {
+        "X-MerchantId": merchant_id,
+        "X-Secret": secret_key,
+        "Content-Type": "application/json"
+    }
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post("https://app.platega.io/transaction/process", json=payload, headers=headers) as response:
+                result = await response.json()
+                if response.status == 200 and result.get("redirect"):
+                    from shop_bot.data_manager.database import create_pending_platega_transaction
+                    create_pending_platega_transaction(result.get("transactionId"), json.dumps(metadata))
+                    return result
+                logger.error(f"Platega API Error: {response.status}, {result}")
+                return None
+    except Exception as e:
+        logger.error(f"Platega request failed: {e}", exc_info=True)
+        return None
+
+
+async def check_platega_payment_status(transaction_id: str) -> dict | None:
+    merchant_id = get_setting("platega_merchant_id")
+    secret_key = get_setting("platega_secret_key")
+
+    if not all([merchant_id, secret_key]):
+        return None
+
+    headers = {
+        "X-MerchantId": merchant_id,
+        "X-Secret": secret_key
+    }
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"https://app.platega.io/transaction/{transaction_id}", headers=headers) as response:
+                if response.status == 200:
+                    return await response.json()
+                return None
+    except Exception as e:
+        logger.error(f"Platega status check failed: {e}")
+        return None
 
 
 async def get_usdt_rub_rate() -> Decimal | None:

@@ -14,7 +14,7 @@ from flask import Flask, request, render_template, redirect, url_for, flash, ses
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-CURRENT_VERSION = "1.4.1"
+CURRENT_VERSION = "1.4.2"
 GITHUB_REPO = "mwdevru/shopbot-beliyspisok"
 
 from shop_bot.modules import mwshark_api
@@ -41,7 +41,7 @@ ALL_SETTINGS_KEYS = [
     "heleket_merchant_id", "heleket_api_key", "domain", "referral_percentage",
     "referral_discount", "force_subscription", "trial_enabled", "trial_duration_days",
     "enable_referrals", "minimum_withdrawal", "support_group_id", "support_bot_token",
-    "mwshark_api_key"
+    "mwshark_api_key", "platega_merchant_id", "platega_secret_key"
 ]
 
 
@@ -669,6 +669,47 @@ def create_webhook_app(bot_controller_instance):
             return 'OK', 200
         except Exception as e:
             logger.error(f"TON webhook error: {e}", exc_info=True)
+            return 'Error', 500
+
+    @flask_app.route('/platega-webhook', methods=['POST'])
+    def platega_webhook_handler():
+        try:
+            data = request.json
+            logger.info(f"Platega webhook: {data}")
+
+            merchant_id = get_setting("platega_merchant_id")
+            secret_key = get_setting("platega_secret_key")
+
+            req_merchant = request.headers.get('X-MerchantId')
+            req_secret = request.headers.get('X-Secret')
+
+            if not merchant_id or not secret_key:
+                return 'Error', 500
+
+            if req_merchant != merchant_id or req_secret != secret_key:
+                logger.warning("Platega webhook: Invalid credentials")
+                return 'Forbidden', 403
+
+            status = data.get('status')
+            transaction_id = data.get('id') or data.get('transactionId')
+
+            if status == 'CONFIRMED' and transaction_id:
+                from shop_bot.data_manager.database import get_pending_platega_transaction, delete_pending_platega_transaction
+                metadata = get_pending_platega_transaction(transaction_id)
+
+                if metadata:
+                    delete_pending_platega_transaction(transaction_id)
+                    bot = _bot_controller.get_bot_instance()
+                    loop = current_app.config.get('EVENT_LOOP')
+                    payment_processor = handlers.process_successful_payment
+
+                    if bot and loop and loop.is_running():
+                        asyncio.run_coroutine_threadsafe(payment_processor(bot, metadata), loop)
+                    logger.info(f"Platega payment confirmed: {transaction_id}")
+
+            return 'OK', 200
+        except Exception as e:
+            logger.error(f"Platega webhook error: {e}", exc_info=True)
             return 'Error', 500
 
     @flask_app.route('/api/check-update')

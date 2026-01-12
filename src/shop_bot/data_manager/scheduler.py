@@ -109,6 +109,30 @@ async def check_expiring_subscriptions(bot: Bot):
             logger.error(f"Expiry processing error for key {key.get('key_id')}: {e}")
 
 
+async def check_pending_platega_payments(bot: Bot):
+    from shop_bot.bot.handlers import check_platega_payment_status, process_successful_payment
+    from shop_bot.data_manager.database import get_all_pending_platega_transactions, delete_pending_platega_transaction
+
+    pending = get_all_pending_platega_transactions()
+    if not pending:
+        return
+
+    logger.info(f"Scheduler: Checking {len(pending)} pending Platega payments...")
+
+    for tx in pending:
+        try:
+            result = await check_platega_payment_status(tx['transaction_id'])
+            if result and result.get('status') == 'CONFIRMED':
+                delete_pending_platega_transaction(tx['transaction_id'])
+                await process_successful_payment(bot, tx['metadata'])
+                logger.info(f"Platega payment confirmed via polling: {tx['transaction_id']}")
+            elif result and result.get('status') in ['CANCELED', 'EXPIRED']:
+                delete_pending_platega_transaction(tx['transaction_id'])
+                logger.info(f"Platega payment {result.get('status')}: {tx['transaction_id']}")
+        except Exception as e:
+            logger.error(f"Platega check error for {tx['transaction_id']}: {e}")
+
+
 async def periodic_subscription_check(bot_controller: BotController):
     logger.info("Scheduler started.")
     await asyncio.sleep(10)
@@ -119,10 +143,11 @@ async def periodic_subscription_check(bot_controller: BotController):
                 bot = bot_controller.get_bot_instance()
                 if bot:
                     await check_expiring_subscriptions(bot)
+                    await check_pending_platega_payments(bot)
                 else:
                     logger.warning("Scheduler: Bot instance not available.")
             else:
-                logger.info("Scheduler: Bot stopped, skipping notifications.")
+                logger.info("Scheduler: Bot stopped, skipping checks.")
 
         except Exception as e:
             logger.error(f"Scheduler error: {e}", exc_info=True)

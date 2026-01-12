@@ -50,6 +50,9 @@ def initialize_db():
     cursor.execute('''CREATE TABLE IF NOT EXISTS plans (
         plan_id INTEGER PRIMARY KEY AUTOINCREMENT, plan_name TEXT NOT NULL,
         days INTEGER NOT NULL, price REAL NOT NULL)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS platega_pending (
+        transaction_id TEXT PRIMARY KEY, metadata TEXT NOT NULL,
+        created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     defaults = {
         "panel_login": "admin", "panel_password": "admin", "about_text": None,
         "terms_url": None, "privacy_url": None, "support_user": None, "support_text": None,
@@ -288,6 +291,29 @@ def find_and_complete_ton_transaction(payment_id: str, amount_ton: float) -> Opt
                  (amount_ton, payment_id))
     conn.commit()
     return json.loads(tx['metadata'])
+
+def create_pending_platega_transaction(transaction_id: str, metadata: str):
+    conn = get_sync_conn()
+    conn.execute("INSERT OR REPLACE INTO platega_pending (transaction_id, metadata) VALUES (?, ?)", (transaction_id, metadata))
+    conn.commit()
+
+def get_pending_platega_transaction(transaction_id: str) -> Optional[Dict]:
+    cursor = get_sync_conn().cursor()
+    cursor.execute("SELECT metadata FROM platega_pending WHERE transaction_id = ?", (transaction_id,))
+    row = cursor.fetchone()
+    if row:
+        return json.loads(row['metadata'])
+    return None
+
+def delete_pending_platega_transaction(transaction_id: str):
+    conn = get_sync_conn()
+    conn.execute("DELETE FROM platega_pending WHERE transaction_id = ?", (transaction_id,))
+    conn.commit()
+
+def get_all_pending_platega_transactions() -> List[Dict]:
+    cursor = get_sync_conn().cursor()
+    cursor.execute("SELECT transaction_id, metadata FROM platega_pending")
+    return [{"transaction_id": row['transaction_id'], "metadata": json.loads(row['metadata'])} for row in cursor.fetchall()]
 
 def get_paginated_transactions(page: int = 1, per_page: int = 15) -> tuple:
     offset = (page - 1) * per_page
