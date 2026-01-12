@@ -1,108 +1,77 @@
 <!DOCTYPE html>
 <html lang="ru">
-	<head>
-		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title>{% block title %}Панель управления Ботом{% endblock %}</title>
-		<link
-			rel="stylesheet"
-			href="{{ url_for('static', filename='css/style.css') }}"
-		/>
-		<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-	</head>
-	<body>
-		<div class="container">
-			<header class="main-header">
-				<nav class="navigation">
-					<a
-						href="{{ url_for('dashboard_page') }}"
-						class="nav-link {% if request.endpoint == 'dashboard_page' %}active{% endif %}"
-						>Dashboard</a
-					>
-					<a
-						href="{{ url_for('users_page') }}"
-						class="nav-link {% if request.endpoint == 'users_page' %}active{% endif %}"
-						>Пользователи</a
-					>
-					<a
-						href="{{ url_for('settings_page') }}"
-						class="nav-link {% if request.endpoint == 'settings_page' %}active{% endif %}"
-						>Настройки</a
-					>
-				</nav>
-
-				<div class="header-controls">
-					<div class="bot-control">
-						{% if bot_status.shop_bot_running %}
-						<p class="status-running">Shop: <strong>Запущен</strong></p>
-						<form action="{{ url_for('stop_shop_bot_route') }}" method="post">
-							<button type="submit" class="button button-stop button-small">
-								Остановить
-							</button>
-						</form>
-						{% else %}
-						<p class="status-stopped">Shop: <strong>Остановлен</strong></p>
-						{% if all_settings_ok %}
-						<form action="{{ url_for('start_shop_bot_route') }}" method="post">
-							<button type="submit" class="button button-start button-small">
-								Запустить
-							</button>
-						</form>
-						{% else %}
-						<button
-							class="button button-disabled button-small"
-							disabled
-							title="Заполните обязательные настройки Telegram"
-						>
-							Запустить
-						</button>
-						{% endif %} {% endif %}
-					</div>
-
-					<div class="bot-control">
-						{% if bot_status.support_bot_running %}
-						<p class="status-running">Support: <strong>Запущен</strong></p>
-						<form
-							action="{{ url_for('stop_support_bot_route') }}"
-							method="post"
-						>
-							<button type="submit" class="button button-stop button-small">
-								Остановить
-							</button>
-						</form>
-						{% else %}
-						<p class="status-stopped">Support: <strong>Остановлен</strong></p>
-						<form
-							action="{{ url_for('start_support_bot_route') }}"
-							method="post"
-						>
-							<button type="submit" class="button button-start button-small">
-								Запустить
-							</button>
-						</form>
-						{% endif %}
-					</div>
-
-					<div class="user-session-controls">
-						<span>Вы вошли в систему.</span>
-						<form
-							action="{{ url_for('logout_page') }}"
-							method="post"
-							style="display: inline"
-						>
-							<button type="submit" class="button button-logout">Выйти</button>
-						</form>
-					</div>
-				</div>
-			</header>
-
-			{% with messages = get_flashed_messages(with_categories=true) %} {% if
-			messages %} {% for category, message in messages %}
-			<div class="flash flash-{{ category }}">{{ message }}</div>
-			{% endfor %} {% endif %} {% endwith %}
-
-			<main>{% block content %}{% endblock %}</main>
-		</div>
-		<script src="{{ url_for('static', filename='js/script.js') }}"></script>
-	</body>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}Панель управления{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<div class="overlay" id="overlay"></div>
+<div class="app">
+<aside class="sidebar" id="sidebar">
+<button class="sidebar-close" id="sidebarClose"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+<div class="sidebar-logo">🤖 ShopBot</div>
+<nav class="sidebar-nav">
+<a href="{{ url_for('dashboard_page') }}" class="nav-item {% if request.endpoint == 'dashboard_page' %}active{% endif %}">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+<span>Dashboard</span>
+</a>
+<a href="{{ url_for('users_page') }}" class="nav-item {% if request.endpoint == 'users_page' %}active{% endif %}">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+<span>Пользователи</span>
+</a>
+<a href="{{ url_for('settings_page') }}" class="nav-item {% if request.endpoint == 'settings_page' %}active{% endif %}">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+<span>Настройки</span>
+</a>
+</nav>
+</aside>
+<div class="main">
+<header class="header">
+<div class="header-left">
+<button class="menu-toggle" id="menuToggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg></button>
+<div class="bot-status">
+<span class="dot {% if bot_status.shop_bot_running %}on{% else %}off{% endif %}"></span>
+<span>Shop</span>
+{% if bot_status.shop_bot_running %}
+<form action="{{ url_for('stop_shop_bot_route') }}" method="post"><button type="submit" class="btn btn-danger btn-xs">Stop</button></form>
+{% elif all_settings_ok %}
+<form action="{{ url_for('start_shop_bot_route') }}" method="post"><button type="submit" class="btn btn-success btn-xs">Start</button></form>
+{% else %}
+<button class="btn btn-ghost btn-xs btn-disabled" disabled>Start</button>
+{% endif %}
+</div>
+<div class="bot-status">
+<span class="dot {% if bot_status.support_bot_running %}on{% else %}off{% endif %}"></span>
+<span>Support</span>
+{% if bot_status.support_bot_running %}
+<form action="{{ url_for('stop_support_bot_route') }}" method="post"><button type="submit" class="btn btn-danger btn-xs">Stop</button></form>
+{% else %}
+<form action="{{ url_for('start_support_bot_route') }}" method="post"><button type="submit" class="btn btn-success btn-xs">Start</button></form>
+{% endif %}
+</div>
+</div>
+<div class="header-right">
+<form action="{{ url_for('logout_page') }}" method="post"><button type="submit" class="btn btn-ghost btn-sm">Выйти</button></form>
+</div>
+</header>
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div style="padding:16px 32px 0">
+{% for category, message in messages %}
+<div class="flash flash-{{ category }}">{{ message }}</div>
+{% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+<main class="content">{% block content %}{% endblock %}</main>
+</div>
+</div>
+<script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
 </html>
