@@ -57,7 +57,7 @@
 </td>
 <td>{{ (user.total_spent or 0)|float|round(0)|int }} ₽</td>
 <td>
-{% if user.is_banned %}<span class="badge badge-danger">Бан</span>
+{% if user.is_banned == 1 or user.is_banned == True %}<span class="badge badge-danger">Бан</span>
 {% else %}<span class="badge badge-success">Актив</span>{% endif %}
 </td>
 <td style="font-size:.8rem;color:var(--text-muted)">{{ user.registration_date[:10] if user.registration_date else '—' }}</td>

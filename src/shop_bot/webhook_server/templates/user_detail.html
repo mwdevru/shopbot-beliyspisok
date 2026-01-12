@@ -13,7 +13,7 @@
 <h2 style="margin:0;font-size:1.25rem">@{{ user.username or 'Без имени' }}</h2>
 <div style="font-family:monospace;color:var(--text-muted);font-size:.875rem">{{ user.telegram_id }}</div>
 </div>
-{% if user.is_banned %}
+{% if user.is_banned == 1 or user.is_banned == True %}
 <span class="badge badge-danger" style="font-size:.875rem;padding:8px 16px">Заблокирован</span>
 {% else %}
 <span class="badge badge-success" style="font-size:.875rem;padding:8px 16px">Активен</span>
@@ -54,12 +54,12 @@
 {% endif %}
 </div>
 <div style="display:flex;gap:8px;flex-wrap:wrap">
-{% if user.is_banned %}
-<form action="{{ url_for('unban_user_route', user_id=user.telegram_id|int) }}" method="post">
+{% if user.is_banned == 1 or user.is_banned == True %}
+<form action="{{ url_for('unban_user_route', user_id=user.telegram_id) }}" method="post">
 <button type="submit" class="btn btn-success btn-sm">✓ Разблокировать</button>
 </form>
 {% else %}
-<form action="{{ url_for('ban_user_route', user_id=user.telegram_id|int) }}" method="post" data-confirm="Заблокировать пользователя?">
+<form action="{{ url_for('ban_user_route', user_id=user.telegram_id) }}" method="post" data-confirm="Заблокировать пользователя?">
 <button type="submit" class="btn btn-warning btn-sm">⛔ Заблокировать</button>
 </form>
 {% endif %}

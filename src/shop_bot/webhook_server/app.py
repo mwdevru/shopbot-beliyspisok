@@ -249,14 +249,14 @@ def create_webhook_app(bot_controller_instance):
     def ban_user_route(user_id):
         ban_user(user_id)
         flash(f'Пользователь {user_id} заблокирован.', 'success')
-        return redirect(url_for('users_page'))
+        return redirect(request.referrer or url_for('user_detail_page', user_id=user_id))
 
     @flask_app.route('/users/unban/<int:user_id>', methods=['POST'])
     @login_required
     def unban_user_route(user_id):
         unban_user(user_id)
         flash(f'Пользователь {user_id} разблокирован.', 'success')
-        return redirect(url_for('users_page'))
+        return redirect(request.referrer or url_for('user_detail_page', user_id=user_id))
 
     @flask_app.route('/users/revoke/<int:user_id>', methods=['POST'])
     @login_required
