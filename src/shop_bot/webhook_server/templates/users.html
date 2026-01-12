@@ -1,74 +1,120 @@
-{% extends "base.html" %} {% block title %}Управление Пользователями{% endblock
-%} {% block content %}
+{% extends "base.html" %}
+{% block title %}Управление Пользователями{% endblock %}
+{% block content %}
 
 <h1>Управление Пользователями</h1>
 
 <section class="settings-section">
-	<h2>Список пользователей</h2>
-	<div style="overflow-x: auto">
-		<table class="users-table">
-			<thead>
-				<tr>
-					<th>Telegram ID</th>
-					<th>Username</th>
-					<th>Статус</th>
-					<th>Активные ключи</th>
-					<th class="actions-cell">Действия</th>
-				</tr>
-			</thead>
-			<tbody>
-				{% for user in users %}
-				<tr>
-					<td>{{ user.telegram_id }}</td>
-					<td>@{{ user.username or 'N/A' }}</td>
-					<td>
-						{% if user.is_banned %}
-						<span class="status-badge status-banned">Забанен</span>
-						{% else %}
-						<span class="status-badge status-active">Активен</span>
-						{% endif %}
-					</td>
-					<td>
-						{% if user.user_keys %} {{ user.user_keys | length }} шт. {% else %}
-						0 {% endif %}
-					</td>
-					<td class="actions-cell">
-						{% if user.is_banned %}
-						<form
-							action="{{ url_for('unban_user_route', user_id=user.telegram_id) }}"
-							method="post"
-						>
-							<button type="submit" class="button button-start button-small">
-								Разбанить
-							</button>
-						</form>
-						{% else %}
-						<form
-							action="{{ url_for('ban_user_route', user_id=user.telegram_id) }}"
-							method="post"
-							data-confirm="Вы уверены, что хотите забанить этого пользователя? Он не сможет пользоваться ботом."
-						>
-							<button type="submit" class="button button-warning button-small">
-								Бан
-							</button>
-						</form>
-						{% endif %} {% if user.user_keys %}
-						<form
-							action="{{ url_for('revoke_keys_route', user_id=user.telegram_id) }}"
-							method="post"
-							data-confirm="ВНИМАНИЕ! Это действие удалит ВСЕ ключи пользователя с серверов. Вы уверены?"
-						>
-							<button type="submit" class="button button-danger button-small">
-								Отозвать
-							</button>
-						</form>
-						{% endif %}
-					</td>
-				</tr>
-				{% endfor %}
-			</tbody>
-		</table>
-	</div>
+    <div class="users-stats">
+        <div class="stat-mini">
+            <span class="stat-label">Всего</span>
+            <span class="stat-value">{{ users|length }}</span>
+        </div>
+        <div class="stat-mini">
+            <span class="stat-label">Активных</span>
+            <span class="stat-value">{{ users|selectattr('user_keys')|list|length }}</span>
+        </div>
+        <div class="stat-mini">
+            <span class="stat-label">Забанено</span>
+            <span class="stat-value">{{ users|selectattr('is_banned')|list|length }}</span>
+        </div>
+    </div>
+
+    <div class="users-grid">
+        {% for user in users %}
+        <div class="user-card {% if user.is_banned %}user-banned{% endif %}">
+            <div class="user-header">
+                <div class="user-avatar">
+                    {{ user.username[0]|upper if user.username else 'U' }}
+                </div>
+                <div class="user-info">
+                    <div class="user-name">@{{ user.username or 'Без имени' }}</div>
+                    <div class="user-id">ID: {{ user.telegram_id }}</div>
+                </div>
+                <div class="user-status">
+                    {% if user.is_banned %}
+                    <span class="badge badge-danger">Забанен</span>
+                    {% else %}
+                    <span class="badge badge-success">Активен</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="user-stats-row">
+                <div class="user-stat">
+                    <span class="stat-icon">🔑</span>
+                    <span>{{ user.user_keys|length }} ключей</span>
+                </div>
+                <div class="user-stat">
+                    <span class="stat-icon">💰</span>
+                    <span>{{ "%.0f"|format(user.total_spent or 0) }} ₽</span>
+                </div>
+                <div class="user-stat">
+                    <span class="stat-icon">📅</span>
+                    <span>{{ user.total_months or 0 }} мес.</span>
+                </div>
+            </div>
+
+            {% if user.user_keys %}
+            <div class="user-keys">
+                {% for key in user.user_keys %}
+                <div class="key-item">
+                    <span class="key-icon">{{ '✅' if key.expiry_date > now().isoformat() else '❌' }}</span>
+                    <span class="key-expiry">до {{ key.expiry_date[:10] }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <div class="user-actions">
+                <div class="action-group">
+                    {% if user.is_banned %}
+                    <form action="{{ url_for('unban_user_route', user_id=user.telegram_id) }}" method="post">
+                        <button type="submit" class="btn btn-success btn-sm">
+                            <span class="btn-icon">✓</span> Разбанить
+                        </button>
+                    </form>
+                    {% else %}
+                    <form action="{{ url_for('ban_user_route', user_id=user.telegram_id) }}" method="post" data-confirm="Забанить пользователя?">
+                        <button type="submit" class="btn btn-warning btn-sm">
+                            <span class="btn-icon">⛔</span> Бан
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+
+                <div class="action-group">
+                    <form action="{{ url_for('grant_key_route', user_id=user.telegram_id) }}" method="post" class="inline-form">
+                        <input type="number" name="days" value="30" min="1" max="365" class="input-mini">
+                        <button type="submit" class="btn btn-primary btn-sm">
+                            <span class="btn-icon">🎁</span> Выдать
+                        </button>
+                    </form>
+                </div>
+
+                {% if user.user_keys %}
+                <div class="action-group">
+                    <form action="{{ url_for('modify_user_days_route', user_id=user.telegram_id) }}" method="post" class="inline-form">
+                        <input type="hidden" name="key_id" value="{{ user.user_keys[0].key_id }}">
+                        <input type="number" name="days" placeholder="+/-" class="input-mini">
+                        <button type="submit" class="btn btn-secondary btn-sm">
+                            <span class="btn-icon">📅</span> Дни
+                        </button>
+                    </form>
+                </div>
+
+                <div class="action-group">
+                    <form action="{{ url_for('revoke_keys_route', user_id=user.telegram_id) }}" method="post" data-confirm="Отозвать все ключи?">
+                        <button type="submit" class="btn btn-danger btn-sm">
+                            <span class="btn-icon">🗑</span> Отозвать
+                        </button>
+                    </form>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
 </section>
 
 {% endblock %}

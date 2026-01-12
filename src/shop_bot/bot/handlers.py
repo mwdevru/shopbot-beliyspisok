@@ -44,9 +44,7 @@ from shop_bot.config import (
 )
 
 TELEGRAM_BOT_USERNAME = None
-PAYMENT_METHODS = None
 ADMIN_ID = None
-CRYPTO_BOT_TOKEN = get_setting("cryptobot_token")
 
 logger = logging.getLogger(__name__)
 admin_router = Router()
@@ -191,6 +189,7 @@ def get_user_router() -> Router:
         )
         await state.set_state(Onboarding.waiting_for_subscription_and_agreement)
 
+
     @user_router.callback_query(Onboarding.waiting_for_subscription_and_agreement, F.data == "check_subscription_and_agree")
     async def check_subscription_handler(callback: types.CallbackQuery, state: FSMContext, bot: Bot):
         user_id = callback.from_user.id
@@ -265,6 +264,7 @@ def get_user_router() -> Router:
         final_text = get_profile_text(username, total_spent, total_months, vpn_status_text)
         await callback.message.edit_text(final_text, reply_markup=keyboards.create_back_to_menu_keyboard())
 
+
     @user_router.callback_query(F.data == "start_broadcast")
     @registration_required
     async def start_broadcast_handler(callback: types.CallbackQuery, state: FSMContext):
@@ -274,8 +274,7 @@ def get_user_router() -> Router:
 
         await callback.answer()
         await callback.message.edit_text(
-            "Пришлите сообщение для рассылки.\n"
-            "Поддерживается форматирование и медиа.",
+            "Пришлите сообщение для рассылки.\nПоддерживается форматирование и медиа.",
             reply_markup=keyboards.create_broadcast_cancel_keyboard()
         )
         await state.set_state(Broadcast.waiting_for_message)
@@ -352,6 +351,7 @@ def get_user_router() -> Router:
         )
         await state.set_state(Broadcast.waiting_for_confirmation)
 
+
     @user_router.callback_query(Broadcast.waiting_for_confirmation, F.data == "confirm_broadcast")
     async def confirm_broadcast_handler(callback: types.CallbackQuery, state: FSMContext, bot: Bot):
         await callback.message.edit_text("⏳ Начинаю рассылку...")
@@ -396,10 +396,7 @@ def get_user_router() -> Router:
                 logger.warning(f"Broadcast failed for {user_id}: {e}")
 
         await callback.message.answer(
-            f"✅ Рассылка завершена!\n\n"
-            f"👍 Отправлено: {sent_count}\n"
-            f"👎 Ошибок: {failed_count}\n"
-            f"🚫 Пропущено: {banned_count}"
+            f"✅ Рассылка завершена!\n\n👍 Отправлено: {sent_count}\n👎 Ошибок: {failed_count}\n🚫 Пропущено: {banned_count}"
         )
         await show_main_menu(callback.message)
 
@@ -408,7 +405,6 @@ def get_user_router() -> Router:
         await callback.answer("Рассылка отменена.")
         await state.clear()
         await show_main_menu(callback.message, edit_message=True)
-
 
     @user_router.callback_query(F.data == "show_referral_program")
     @registration_required
@@ -436,6 +432,7 @@ def get_user_router() -> Router:
         builder.button(text="⬅️ Назад", callback_data="back_to_main_menu")
         builder.adjust(1)
         await callback.message.edit_text(text, reply_markup=builder.as_markup())
+
 
     @user_router.callback_query(F.data == "withdraw_request")
     @registration_required
@@ -535,6 +532,7 @@ def get_user_router() -> Router:
                 reply_markup=keyboards.create_support_keyboard(support_user)
             )
 
+
     @user_router.callback_query(F.data == "manage_keys")
     @registration_required
     async def manage_keys_handler(callback: types.CallbackQuery):
@@ -615,6 +613,7 @@ def get_user_router() -> Router:
         except Exception as e:
             logger.error(f"Show key error {key_id}: {e}")
             await callback.message.edit_text("❌ Ошибка получения данных.")
+
 
     @user_router.callback_query(F.data.startswith("show_qr_"))
     @registration_required
@@ -747,7 +746,6 @@ def get_user_router() -> Router:
             await message.answer(
                 CHOOSE_PAYMENT_METHOD_MESSAGE,
                 reply_markup=keyboards.create_payment_method_keyboard(
-                    payment_methods=PAYMENT_METHODS,
                     action=data.get('action'),
                     key_id=data.get('key_id')
                 )
@@ -764,7 +762,6 @@ def get_user_router() -> Router:
         await callback.message.edit_text(
             CHOOSE_PAYMENT_METHOD_MESSAGE,
             reply_markup=keyboards.create_payment_method_keyboard(
-                payment_methods=PAYMENT_METHODS,
                 action=data.get('action'),
                 key_id=data.get('key_id')
             )
@@ -778,6 +775,7 @@ def get_user_router() -> Router:
             reply_markup=keyboards.create_skip_email_keyboard()
         )
         await state.set_state(PaymentProcess.waiting_for_email)
+
 
     @user_router.callback_query(PaymentProcess.waiting_for_payment_method, F.data == "pay_yookassa")
     async def create_yookassa_payment_handler(callback: types.CallbackQuery, state: FSMContext):
@@ -846,6 +844,7 @@ def get_user_router() -> Router:
             logger.error(f"YooKassa payment error: {e}", exc_info=True)
             await callback.message.answer("Не удалось создать ссылку.")
             await state.clear()
+
 
     @user_router.callback_query(PaymentProcess.waiting_for_payment_method, F.data == "pay_cryptobot")
     async def create_cryptobot_invoice_handler(callback: types.CallbackQuery, state: FSMContext):

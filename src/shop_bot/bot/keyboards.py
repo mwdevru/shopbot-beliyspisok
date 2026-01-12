@@ -100,17 +100,27 @@ def create_skip_email_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def create_payment_method_keyboard(payment_methods: dict, action: str, key_id: int) -> InlineKeyboardMarkup:
+def create_payment_method_keyboard(action: str, key_id: int) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
 
-    if payment_methods and payment_methods.get("yookassa"):
-        text = "🏦 СБП / Банковская карта" if get_setting("sbp_enabled") else "🏦 Банковская карта"
+    yookassa_shop_id = get_setting("yookassa_shop_id")
+    yookassa_secret_key = get_setting("yookassa_secret_key")
+    if yookassa_shop_id and yookassa_secret_key:
+        text = "🏦 СБП / Банковская карта" if get_setting("sbp_enabled") == "true" else "🏦 Банковская карта"
         builder.button(text=text, callback_data="pay_yookassa")
-    if payment_methods and payment_methods.get("heleket"):
+
+    heleket_merchant_id = get_setting("heleket_merchant_id")
+    heleket_api_key = get_setting("heleket_api_key")
+    if heleket_merchant_id and heleket_api_key:
         builder.button(text="💎 Криптовалюта", callback_data="pay_heleket")
-    if payment_methods and payment_methods.get("cryptobot"):
+
+    cryptobot_token = get_setting("cryptobot_token")
+    if cryptobot_token:
         builder.button(text="🤖 CryptoBot", callback_data="pay_cryptobot")
-    if payment_methods and payment_methods.get("tonconnect"):
+
+    ton_wallet = get_setting("ton_wallet_address")
+    tonapi_key = get_setting("tonapi_key")
+    if ton_wallet and tonapi_key:
         builder.button(text="🪙 TON Connect", callback_data="pay_tonconnect")
 
     builder.button(text="⬅️ Назад", callback_data="back_to_email_prompt")

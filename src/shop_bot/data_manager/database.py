@@ -1,7 +1,7 @@
 import sqlite3
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -728,3 +728,32 @@ def delete_user_keys(user_id: int):
             conn.commit()
     except sqlite3.Error as e:
         logging.error(f"Failed to delete keys for {user_id}: {e}")
+
+
+def update_key_expiry_days(key_id: int, days_delta: int):
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT expiry_date FROM vpn_keys WHERE key_id = ?", (key_id,))
+            result = cursor.fetchone()
+            if result:
+                current_expiry = datetime.fromisoformat(result[0])
+                new_expiry = current_expiry + timedelta(days=days_delta)
+                cursor.execute("UPDATE vpn_keys SET expiry_date = ? WHERE key_id = ?", (new_expiry, key_id))
+                conn.commit()
+                return True
+    except sqlite3.Error as e:
+        logging.error(f"Failed to update key expiry for {key_id}: {e}")
+    return False
+
+
+def set_key_expiry_date(key_id: int, new_expiry: datetime):
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE vpn_keys SET expiry_date = ? WHERE key_id = ?", (new_expiry, key_id))
+            conn.commit()
+            return True
+    except sqlite3.Error as e:
+        logging.error(f"Failed to set key expiry for {key_id}: {e}")
+    return False

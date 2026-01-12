@@ -1,9 +1,3 @@
-"""
-MW VPN API Client (MW API)
-API Documentation: https://vpn.mwshark.host/api/docs
-Get API key: https://t.me/mwvpnbot
-"""
-
 import logging
 import aiohttp
 from typing import Optional, Dict, Any
@@ -54,11 +48,19 @@ class MWSharkAPI:
         data = {"user_id": user_id, "days": days}
         if name:
             data["name"] = name
-        return await self._request("POST", "/subscription/create")
+        return await self._request("POST", "/subscription/create", data)
 
     async def extend_subscription(self, user_id: int, days: int) -> Dict[str, Any]:
         data = {"user_id": user_id, "days": days}
         return await self._request("POST", "/subscription/extend", data)
+
+    async def revoke_subscription(self, user_id: int) -> Dict[str, Any]:
+        data = {"user_id": user_id}
+        return await self._request("POST", "/subscription/revoke", data)
+
+    async def get_grants(self, user_id: int = None) -> Dict[str, Any]:
+        endpoint = f"/grants?user_id={user_id}" if user_id else "/grants"
+        return await self._request("GET", endpoint)
 
     async def get_subscription_status(self, user_id: int) -> Dict[str, Any]:
         return await self._request("GET", f"/subscription/{user_id}")
@@ -91,6 +93,17 @@ async def extend_subscription_for_user(api_key: str, user_id: int, days: int) ->
     return await api._request("POST", "/subscription/extend", data)
 
 
+async def revoke_subscription_for_user(api_key: str, user_id: int) -> Dict[str, Any]:
+    api = MWSharkAPI(api_key)
+    data = {"user_id": user_id}
+    return await api._request("POST", "/subscription/revoke", data)
+
+
+async def get_user_grants(api_key: str, user_id: int = None) -> Dict[str, Any]:
+    api = MWSharkAPI(api_key)
+    return await api.get_grants(user_id)
+
+
 async def get_user_subscription(api_key: str, user_id: int) -> Dict[str, Any]:
     api = MWSharkAPI(api_key)
     return await api._request("GET", f"/subscription/{user_id}")
@@ -109,3 +122,8 @@ async def get_api_tariffs(api_key: str) -> Dict[str, Any]:
 async def calculate_api_price(api_key: str, days: int) -> Dict[str, Any]:
     api = MWSharkAPI(api_key)
     return await api.calculate_price(days)
+
+
+async def get_api_history(api_key: str) -> Dict[str, Any]:
+    api = MWSharkAPI(api_key)
+    return await api.get_history()
