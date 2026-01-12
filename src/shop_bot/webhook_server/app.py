@@ -696,6 +696,11 @@ def create_webhook_app(bot_controller_instance):
         except Exception as e:
             return jsonify({'error': str(e), 'current': CURRENT_VERSION, 'has_update': False})
 
+    @flask_app.route('/updates')
+    @login_required
+    def updates_page():
+        return render_template('updates.html', current_version=CURRENT_VERSION, **get_common_template_data())
+
     @flask_app.route('/api/do-update', methods=['POST'])
     @login_required
     def do_update_api():

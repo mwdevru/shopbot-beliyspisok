@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}Обновления{% endblock %}
+{% block content %}
+<h1 class="page-title">Обновления</h1>
+<div class="grid-2">
+<div>
+<div class="card" style="margin-bottom:24px">
+<div class="card-title">Текущая версия</div>
+<div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
+<div style="font-size:2rem;font-weight:700;color:var(--primary)">v{{ current_version }}</div>
+<div id="versionStatus" style="font-size:.875rem;color:var(--text-muted)">Проверка...</div>
+</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap">
+<button onclick="checkUpdates()" class="btn btn-ghost btn-sm" id="checkBtn">🔄 Проверить обновления</button>
+<button onclick="forceUpdate()" class="btn btn-primary btn-sm" id="updateBtn" style="display:none">⬇️ Обновить</button>
+</div>
+</div>
+<div class="card" id="updateInfo" style="display:none">
+<div class="card-title">Доступно обновление</div>
+<div style="margin-bottom:16px">
+<div style="font-size:1.5rem;font-weight:600;color:var(--success)" id="latestVersion"></div>
+</div>
+<div id="changelog" style="background:var(--bg-input);padding:16px;border-radius:8px;font-size:.875rem;max-height:300px;overflow-y:auto;white-space:pre-wrap"></div>
+<div style="margin-top:16px">
+<a id="releaseUrl" href="#" target="_blank" class="btn btn-ghost btn-sm">📄 Открыть на GitHub</a>
+</div>
+</div>
+<div class="card" id="noUpdate" style="display:none">
+<div style="text-align:center;padding:20px">
+<div style="font-size:3rem;margin-bottom:8px">✅</div>
+<div style="font-size:1.125rem;font-weight:500">У вас последняя версия</div>
+</div>
+</div>
+</div>
+<div>
+<div class="card">
+<div class="card-title">Changelog</div>
+<div style="font-size:.875rem;line-height:1.8">
+<div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border)">
+<div style="font-weight:600;color:var(--primary)">v1.4.0</div>
+<ul style="margin:8px 0 0 20px;color:var(--text-muted)">
+<li>База данных на aiosqlite</li>
+<li>Автомиграция данных</li>
+<li>Система обновлений</li>
+<li>Отзыв отдельных ключей</li>
+</ul>
+</div>
+<div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border)">
+<div style="font-weight:600;color:var(--primary)">v1.3.0</div>
+<ul style="margin:8px 0 0 20px;color:var(--text-muted)">
+<li>Страница пользователя</li>
+<li>Транзакции</li>
+<li>API статистика</li>
+<li>Рассылка из панели</li>
+</ul>
+</div>
+<div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border)">
+<div style="font-weight:600;color:var(--primary)">v1.2.0</div>
+<ul style="margin:8px 0 0 20px;color:var(--text-muted)">
+<li>Отзыв через MW API</li>
+<li>Новый дизайн панели</li>
+<li>Адаптивная вёрстка</li>
+</ul>
+</div>
+<div>
+<div style="font-weight:600;color:var(--primary)">v1.1.0</div>
+<ul style="margin:8px 0 0 20px;color:var(--text-muted)">
+<li>Интеграция MW API</li>
+<li>Платежные системы</li>
+<li>Реферальная система</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+</div>
+<script>
+function checkUpdates(){
+document.getElementById('checkBtn').disabled=true;
+document.getElementById('checkBtn').textContent='Проверка...';
+fetch('/api/check-update').then(r=>r.json()).then(data=>{
+document.getElementById('checkBtn').disabled=false;
+document.getElementById('checkBtn').textContent='🔄 Проверить обновления';
+if(data.has_update){
+document.getElementById('versionStatus').innerHTML='<span style="color:var(--warning)">Доступно обновление!</span>';
+document.getElementById('updateInfo').style.display='block';
+document.getElementById('noUpdate').style.display='none';
+document.getElementById('latestVersion').textContent='v'+data.latest;
+document.getElementById('changelog').textContent=data.changelog||'Нет описания';
+document.getElementById('releaseUrl').href=data.url;
+document.getElementById('updateBtn').style.display='inline-flex';
+window.latestData=data;
+}else{
+document.getElementById('versionStatus').innerHTML='<span style="color:var(--success)">Актуальная версия</span>';
+document.getElementById('updateInfo').style.display='none';
+document.getElementById('noUpdate').style.display='block';
+document.getElementById('updateBtn').style.display='none';
+}
+}).catch(e=>{
+document.getElementById('checkBtn').disabled=false;
+document.getElementById('checkBtn').textContent='🔄 Проверить обновления';
+document.getElementById('versionStatus').innerHTML='<span style="color:var(--danger)">Ошибка проверки</span>';
+});
+}
+function forceUpdate(){
+if(!confirm('Обновить панель? После обновления потребуется перезапуск контейнера.'))return;
+document.getElementById('updateBtn').disabled=true;
+document.getElementById('updateBtn').textContent='Обновление...';
+fetch('/api/do-update',{method:'POST'}).then(r=>r.json()).then(data=>{
+if(data.success){
+alert('✅ '+data.message+'\n\nВыполните: docker-compose restart');
+location.reload();
+}else{
+alert('❌ Ошибка: '+data.message);
+document.getElementById('updateBtn').disabled=false;
+document.getElementById('updateBtn').textContent='⬇️ Обновить';
+}
+}).catch(e=>{
+alert('Ошибка: '+e);
+document.getElementById('updateBtn').disabled=false;
+document.getElementById('updateBtn').textContent='⬇️ Обновить';
+});
+}
+checkUpdates();
+</script>
+{% endblock %}
