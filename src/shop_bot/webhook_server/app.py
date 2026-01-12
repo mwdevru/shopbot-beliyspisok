@@ -164,19 +164,26 @@ def create_webhook_app(bot_controller_instance):
     @flask_app.route('/settings', methods=['GET', 'POST'])
     @login_required
     def settings_page():
+        settings_keys = [
+            "panel_login", "about_text", "terms_url", "privacy_url",
+            "android_url", "ios_url", "windows_url", "linux_url",
+            "support_user", "support_text", "channel_url", "telegram_bot_token",
+            "telegram_bot_username", "admin_telegram_id", "referral_percentage",
+            "referral_discount", "trial_duration_days", "minimum_withdrawal",
+            "support_group_id", "support_bot_token", "mwshark_api_key"
+        ]
         if request.method == 'POST':
             if 'panel_password' in request.form and request.form.get('panel_password'):
                 update_setting('panel_password', request.form.get('panel_password'))
 
-            for checkbox_key in ['force_subscription', 'sbp_enabled', 'trial_enabled', 'enable_referrals']:
+            for checkbox_key in ['force_subscription', 'trial_enabled', 'enable_referrals']:
                 values = request.form.getlist(checkbox_key)
                 value = values[-1] if values else 'false'
                 update_setting(checkbox_key, 'true' if value == 'true' else 'false')
 
-            for key in ALL_SETTINGS_KEYS:
-                if key in ['panel_password', 'force_subscription', 'sbp_enabled', 'trial_enabled', 'enable_referrals']:
-                    continue
-                update_setting(key, request.form.get(key, ''))
+            for key in settings_keys:
+                if key in request.form:
+                    update_setting(key, request.form.get(key, ''))
 
             flash('Настройки успешно сохранены!', 'success')
             return redirect(url_for('settings_page'))
