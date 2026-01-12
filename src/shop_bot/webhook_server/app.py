@@ -696,6 +696,19 @@ def create_webhook_app(bot_controller_instance):
         except Exception as e:
             return jsonify({'error': str(e), 'current': CURRENT_VERSION, 'has_update': False})
 
+    @flask_app.route('/api/changelog')
+    @login_required
+    def get_changelog_api():
+        try:
+            import urllib.request
+            url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/CHANGELOG.md"
+            req = urllib.request.Request(url, headers={'User-Agent': 'ShopBot'})
+            with urllib.request.urlopen(req, timeout=5) as response:
+                content = response.read().decode('utf-8')
+                return jsonify({'success': True, 'content': content})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)})
+
     @flask_app.route('/updates')
     @login_required
     def updates_page():

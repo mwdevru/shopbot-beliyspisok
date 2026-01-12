@@ -55,16 +55,16 @@
 </div>
 <div style="display:flex;gap:8px;flex-wrap:wrap">
 {% if user.is_banned %}
-<form action="{{ url_for('unban_user_route', user_id=user.telegram_id) }}" method="post">
+<form action="{{ url_for('unban_user_route', user_id=user.telegram_id|int) }}" method="post">
 <button type="submit" class="btn btn-success btn-sm">✓ Разблокировать</button>
 </form>
 {% else %}
-<form action="{{ url_for('ban_user_route', user_id=user.telegram_id) }}" method="post" data-confirm="Заблокировать пользователя?">
+<form action="{{ url_for('ban_user_route', user_id=user.telegram_id|int) }}" method="post" data-confirm="Заблокировать пользователя?">
 <button type="submit" class="btn btn-warning btn-sm">⛔ Заблокировать</button>
 </form>
 {% endif %}
 {% if user.user_keys %}
-<form action="{{ url_for('revoke_keys_route', user_id=user.telegram_id) }}" method="post" data-confirm="Отозвать все ключи через API?">
+<form action="{{ url_for('revoke_keys_route', user_id=user.telegram_id|int) }}" method="post" data-confirm="Отозвать все ключи через API?">
 <button type="submit" class="btn btn-danger btn-sm">🗑 Отозвать все ключи</button>
 </form>
 {% endif %}
@@ -72,7 +72,7 @@
 </div>
 <div class="card" style="margin-bottom:24px">
 <div class="card-title">💬 Отправить сообщение</div>
-<form action="{{ url_for('send_message_to_user', user_id=user.telegram_id) }}" method="post">
+<form action="{{ url_for('send_message_to_user', user_id=user.telegram_id|int) }}" method="post">
 <div class="form-group" style="margin-bottom:12px">
 <textarea name="message" class="form-input" rows="3" placeholder="Текст сообщения (HTML)" required></textarea>
 </div>
@@ -107,7 +107,7 @@
 <div>
 <div class="card" style="margin-bottom:24px">
 <div class="card-title">🎁 Выдать ключ</div>
-<form action="{{ url_for('grant_key_route', user_id=user.telegram_id) }}" method="post">
+<form action="{{ url_for('grant_key_route', user_id=user.telegram_id|int) }}" method="post">
 <div class="form-group">
 <label class="form-label">Количество дней</label>
 <input type="number" name="days" class="form-input" value="30" min="1" max="365" required>
@@ -118,8 +118,8 @@
 {% if user.user_keys %}
 <div class="card" style="margin-bottom:24px">
 <div class="card-title">📅 Изменить срок</div>
-<form action="{{ url_for('modify_user_days_route', user_id=user.telegram_id) }}" method="post">
-<input type="hidden" name="key_id" value="{{ user.user_keys[0].key_id }}">
+<form action="{{ url_for('modify_user_days_route', user_id=user.telegram_id|int) }}" method="post">
+<input type="hidden" name="key_id" value="{{ user.user_keys[0].key_id|int }}">
 <div class="form-group">
 <label class="form-label">Дней (+/-)</label>
 <input type="number" name="days" class="form-input" placeholder="+30 или -10" required>
@@ -152,9 +152,11 @@
 </details>
 {% endif %}
 <div style="margin-top:12px;display:flex;gap:8px">
-<form action="{{ url_for('revoke_single_key_route', user_id=user.telegram_id, key_id=key.key_id) }}" method="post" data-confirm="Отозвать этот ключ?">
+{% if key.key_id %}
+<form action="{{ url_for('revoke_single_key_route', user_id=user.telegram_id|int, key_id=key.key_id|int) }}" method="post" data-confirm="Отозвать этот ключ?">
 <button type="submit" class="btn btn-danger btn-xs">Отозвать</button>
 </form>
+{% endif %}
 </div>
 </div>
 {% endfor %}
