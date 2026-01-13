@@ -89,6 +89,50 @@ echo -e "${BOLD}${GREEN}║       🤖 VPN Reseller Bot - Установщик  
 echo -e "${BOLD}${GREEN}╚════════════════════════════════════════════════════╝${NC}"
 echo ""
 
+update_nginx_error_page() {
+    if ! grep -q "error_page 502" "$NGINX_CONF_FILE"; then
+        local domain=$(grep -oP 'server_name \K[^;]+' "$NGINX_CONF_FILE" | head -1)
+        local project_path=$(pwd)
+        
+        sudo bash -c "cat > $NGINX_CONF_FILE" <<EOF
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name ${domain};
+
+    ssl_certificate /etc/letsencrypt/live/${domain}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${domain}/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    error_page 502 503 504 /502.html;
+    location = /502.html {
+        root ${project_path}/src/shop_bot/webhook_server/static;
+        internal;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:1488;
+        proxy_set_header Host \\\$host;
+        proxy_set_header X-Real-IP \\\$remote_addr;
+        proxy_set_header X-Forwarded-For \\\$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \\\$scheme;
+    }
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${domain};
+    return 301 https://\\\$server_name\\\$request_uri;
+}
+EOF
+        sudo nginx -t && sudo systemctl reload nginx
+        return 0
+    fi
+    return 1
+}
+
 if [ -f "$NGINX_CONF_FILE" ]; then
     echo -e "${YELLOW}Обнаружена существующая установка. Режим: ${BOLD}ОБНОВЛЕНИЕ${NC}"
     
@@ -101,6 +145,13 @@ if [ -f "$NGINX_CONF_FILE" ]; then
 
     step_header "Обновление кода"
     run_silent "Получение обновлений из Git" git pull
+
+    step_header "Проверка конфигурации"
+    if update_nginx_error_page > /dev/null 2>&1; then
+        echo -e "  ${GREEN}${CHECK}${NC} Nginx конфиг обновлён"
+    else
+        echo -e "  ${GREEN}${CHECK}${NC} Nginx конфиг актуален"
+    fi
 
     step_header "Перезапуск сервисов"
     run_docker
