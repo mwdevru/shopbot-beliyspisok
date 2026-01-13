@@ -568,6 +568,73 @@ def create_webhook_app(bot_controller_instance):
         flash("Тариф удален.", 'success')
         return redirect(url_for('plans_page'))
 
+    @flask_app.route('/branding', methods=['GET', 'POST'])
+    @login_required
+    def branding_page():
+        if request.method == 'POST':
+            for checkbox_key in ['branding_enabled']:
+                values = request.form.getlist(checkbox_key)
+                value = values[-1] if values else 'false'
+                update_setting(checkbox_key, 'true' if value == 'true' else 'false')
+            
+            for key in ['branding_name', 'branding_description', 'branding_website', 'branding_telegram']:
+                if key in request.form:
+                    update_setting(key, request.form.get(key, ''))
+            
+            flash('Настройки брендинга сохранены!', 'success')
+            return redirect(url_for('branding_page'))
+        
+        from shop_bot.data_manager.database import get_all_keys
+        active_subscriptions = [k for k in get_all_keys() if k.get('subscription_uuid')]
+        
+        return render_template('branding.html', settings=get_all_settings(), active_subscriptions=active_subscriptions, **get_common_template_data())
+
+    @flask_app.route('/apply-branding', methods=['POST'])
+    @login_required
+    def apply_branding():
+        uuids = request.form.getlist('uuids')
+        if not uuids:
+            flash('Выберите подписки.', 'danger')
+            return redirect(url_for('branding_page'))
+        
+        settings = get_all_settings()
+        api_key = settings.get('mwshark_api_key')
+        if not api_key:
+            flash('API ключ не настроен.', 'danger')
+            return redirect(url_for('branding_page'))
+        
+        name = settings.get('branding_name', '')
+        description = settings.get('branding_description', '')
+        website = settings.get('branding_website', '')
+        telegram = settings.get('branding_telegram', '')
+        
+        if not name:
+            flash('Укажите название брендинга.', 'danger')
+            return redirect(url_for('branding_page'))
+        
+        success_count = 0
+        error_count = 0
+        
+        try:
+            loop = current_app.config.get('EVENT_LOOP')
+            if loop and loop.is_running():
+                for uuid in uuids:
+                    future = asyncio.run_coroutine_threadsafe(
+                        mwshark_api.update_subscription_metadata(api_key, uuid, name, description, website, telegram), loop
+                    )
+                    result = future.result(timeout=10)
+                    if result.get('success'):
+                        success_count += 1
+                    else:
+                        error_count += 1
+        except Exception as e:
+            logger.error(f"Apply branding error: {e}")
+            flash(f'Ошибка: {e}', 'danger')
+            return redirect(url_for('branding_page'))
+        
+        flash(f'Брендинг применён: {success_count} успешно, {error_count} ошибок.', 'success')
+        return redirect(url_for('branding_page'))
+
     @flask_app.route('/api-stats')
     @login_required
     def api_stats_page():

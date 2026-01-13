@@ -586,6 +586,17 @@ def get_user_router() -> Router:
             expiry_ms = int(expiry_date.timestamp() * 1000)
             subscription_link = subscription.get('link', '')
 
+            if get_setting("branding_enabled") == "true" and subscription_uuid:
+                branding_name = get_setting("branding_name")
+                if branding_name:
+                    await mwshark_api.update_subscription_metadata(
+                        api_key, subscription_uuid,
+                        name=branding_name,
+                        description=get_setting("branding_description"),
+                        website=get_setting("branding_website"),
+                        telegram=get_setting("branding_telegram")
+                    )
+
             new_key_id = add_new_key(user_id=user_id, subscription_link=subscription_link, expiry_timestamp_ms=expiry_ms, subscription_uuid=subscription_uuid)
 
             await callback.message.delete()
@@ -1223,6 +1234,18 @@ async def process_successful_payment(bot: Bot, metadata: dict):
             result = await mwshark_api.create_subscription_for_user(
                 api_key=api_key, user_id=user_id, days=days
             )
+            if result.get('success'):
+                subscription_uuid = result.get('subscription', {}).get('uuid', '')
+                if get_setting("branding_enabled") == "true" and subscription_uuid:
+                    branding_name = get_setting("branding_name")
+                    if branding_name:
+                        await mwshark_api.update_subscription_metadata(
+                            api_key, subscription_uuid,
+                            name=branding_name,
+                            description=get_setting("branding_description"),
+                            website=get_setting("branding_website"),
+                            telegram=get_setting("branding_telegram")
+                        )
         elif action == "extend":
             key_data = get_key_by_id(key_id)
             if not key_data or not key_data.get('subscription_uuid'):

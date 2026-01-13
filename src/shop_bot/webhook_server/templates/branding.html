@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Брендинг{% endblock %}
+{% block content %}
+<h1 class="page-title">Брендинг подписок</h1>
+<div class="card" style="margin-bottom:24px">
+<div class="card-title">⚠️ Важная информация</div>
+<div style="background:rgba(255,193,7,0.1);border:1px solid rgba(255,193,7,0.3);border-radius:8px;padding:16px;margin-bottom:16px">
+<p style="margin:0;color:var(--text-muted);font-size:.9rem">
+<strong>Платная услуга:</strong> При включении брендинга к стоимости каждого ключа добавляется <strong>+7%</strong> комиссии API.
+Эта наценка взимается один раз при первой установке метаданных для каждой подписки.
+После оплаты все последующие изменения метаданных бесплатны.
+</p>
+</div>
+</div>
+<form action="{{ url_for('branding_page') }}" method="post">
+<div class="card" style="margin-bottom:24px">
+<div class="card-title">Настройки брендинга</div>
+<div class="form-group">
+<div class="form-check">
+<input type="hidden" name="branding_enabled" value="false">
+<input type="checkbox" id="branding_enabled" name="branding_enabled" value="true" {% if settings.branding_enabled == 'true' %}checked{% endif %}>
+<label for="branding_enabled">Включить брендинг для новых подписок (+7% к цене)</label>
+</div>
+</div>
+<div class="form-group">
+<label class="form-label">Название</label>
+<input type="text" name="branding_name" class="form-input" value="{{ settings.branding_name or '' }}" placeholder="Например: MW LLC">
+</div>
+<div class="form-group">
+<label class="form-label">Описание</label>
+<textarea name="branding_description" class="form-input" rows="3" placeholder="Описание вашего сервиса">{{ settings.branding_description or '' }}</textarea>
+</div>
+<div class="form-group">
+<label class="form-label">Сайт</label>
+<input type="url" name="branding_website" class="form-input" value="{{ settings.branding_website or '' }}" placeholder="https://example.com">
+</div>
+<div class="form-group">
+<label class="form-label">Telegram</label>
+<input type="text" name="branding_telegram" class="form-input" value="{{ settings.branding_telegram or '' }}" placeholder="@username или https://t.me/username">
+</div>
+<button type="submit" class="btn btn-primary" style="width:100%">Сохранить</button>
+</div>
+</form>
+{% if active_subscriptions %}
+<div class="card">
+<div class="card-title">Применить брендинг к существующим подпискам</div>
+<p style="color:var(--text-muted);font-size:.85rem;margin-bottom:16px">
+Выберите подписки для применения текущих настроек брендинга. Для подписок без метаданных будет взиматься комиссия 7%.
+</p>
+<form action="{{ url_for('apply_branding') }}" method="post">
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th><input type="checkbox" id="selectAll"></th>
+<th>UUID</th>
+<th>Пользователь</th>
+<th>Истекает</th>
+</tr>
+</thead>
+<tbody>
+{% for sub in active_subscriptions %}
+<tr>
+<td><input type="checkbox" name="uuids" value="{{ sub.subscription_uuid }}"></td>
+<td><code style="font-size:.75rem">{{ sub.subscription_uuid[:8] }}...</code></td>
+<td>{{ sub.user_id }}</td>
+<td>{{ sub.expiry_date }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+<button type="submit" class="btn btn-primary" style="margin-top:16px">Применить брендинг</button>
+</form>
+</div>
+{% endif %}
+<script>
+document.getElementById('selectAll')?.addEventListener('change', function() {
+    document.querySelectorAll('input[name="uuids"]').forEach(cb => cb.checked = this.checked);
+});
+</script>
+{% endblock %}
