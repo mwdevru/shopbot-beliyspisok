@@ -2,7 +2,8 @@ import os
 import logging
 import asyncio
 import json
-import hashlib  
+import hashlib
+import hmac
 import base64
 import subprocess
 import platform
@@ -641,9 +642,30 @@ def create_webhook_app(bot_controller_instance):
             logger.error(f"YooKassa webhook error: {e}", exc_info=True)
             return 'Error', 500
 
+    def verify_cryptobot_signature(token: str, body: bytes) -> bool:
+        signature = request.headers.get('crypto-pay-api-signature')
+        if not signature:
+            return False
+        try:
+            secret = hashlib.sha256(token.encode()).digest()
+            expected_signature = hmac.new(secret, body, hashlib.sha256).hexdigest()
+            return compare_digest(expected_signature, signature)
+        except Exception:
+            return False
+
     @flask_app.route('/cryptobot-webhook', methods=['POST'])
     def cryptobot_webhook_handler():
         try:
+            cryptobot_token = get_setting("cryptobot_token")
+            if not cryptobot_token:
+                logger.error("CryptoBot Webhook: Token not configured")
+                return 'Error', 500
+
+            raw_body = request.get_data()
+            if not verify_cryptobot_signature(cryptobot_token, raw_body):
+                logger.warning("CryptoBot Webhook: Invalid signature - request rejected")
+                return 'Forbidden', 403
+
             request_data = request.json
 
             if request_data and request_data.get('update_type') == 'invoice_paid':
