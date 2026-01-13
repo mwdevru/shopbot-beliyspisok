@@ -37,7 +37,7 @@ if [ -f "$NGINX_CONF_FILE" ]; then
     echo -e "${GREEN}✔ Код успешно обновлен.${NC}"
 
     echo -e "\n${CYAN}Шаг 2: Пересборка и перезапуск Docker-контейнеров...${NC}"
-    sudo docker-compose down --remove-orphans && sudo docker-compose up -d --build
+    sudo docker compose down --remove-orphans && sudo docker compose up -d --build
     
     echo -e "\n\n${GREEN}==============================================${NC}"
     echo -e "${GREEN}      🎉 Обновление успешно завершено! 🎉      ${NC}"
@@ -61,7 +61,6 @@ install_package() {
 
 install_package "git" "git"
 install_package "docker" "docker.io"
-install_package "docker-compose" "docker-compose"
 install_package "nginx" "nginx"
 install_package "curl" "curl"
 install_package "certbot" "certbot python3-certbot-nginx"
@@ -102,18 +101,51 @@ if command -v ufw &> /dev/null && sudo ufw status | grep -q 'Status: active'; th
     sudo ufw allow 1488/tcp
 fi
 
-if [ -d "/etc/letsencrypt/live/$DOMAIN" ]; then
-    echo -e "${GREEN}✔ SSL-сертификаты уже существуют.${NC}"
-else
-    sudo certbot --nginx -d $DOMAIN --email $EMAIL --agree-tos --non-interactive --redirect
-    echo -e "${GREEN}✔ SSL-сертификаты получены.${NC}"
-fi
-
 echo -e "\n${CYAN}Шаг 4: Настройка Nginx...${NC}"
 
 NGINX_ENABLED_FILE="/etc/nginx/sites-enabled/${PROJECT_DIR}.conf"
 
 sudo rm -rf /etc/nginx/sites-enabled/default
+
+# Создаем временную конфигурацию для получения сертификата
+sudo bash -c "cat > $NGINX_CONF_FILE" <<EOF
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${DOMAIN};
+
+    location / {
+        return 200 'OK';
+        add_header Content-Type text/plain;
+    }
+}
+EOF
+
+if [ ! -f "$NGINX_ENABLED_FILE" ]; then
+    sudo ln -s $NGINX_CONF_FILE $NGINX_ENABLED_FILE
+fi
+
+sudo nginx -t && sudo systemctl reload nginx
+
+# Получаем SSL-сертификат
+if [ -d "/etc/letsencrypt/live/$DOMAIN" ]; then
+    echo -e "${GREEN}✔ SSL-сертификаты уже существуют.${NC}"
+else
+    sudo certbot --nginx -d $DOMAIN --email $EMAIL --agree-tos --non-interactive --redirect
+    if [ $? -ne 0 ]; then
+        echo -e "${YELLOW}⚠ Автоматическая установка не удалась. Получаем сертификат вручную...${NC}"
+        sudo certbot certonly --nginx -d $DOMAIN --email $EMAIL --agree-tos --non-interactive
+    fi
+    echo -e "${GREEN}✔ SSL-сертификаты получены.${NC}"
+fi
+
+# Проверяем наличие сертификатов
+if [ ! -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
+    echo -e "${RED}Ошибка: SSL-сертификаты не найдены!${NC}"
+    exit 1
+fi
+
+# Создаем финальную конфигурацию с SSL
 sudo bash -c "cat > $NGINX_CONF_FILE" <<EOF
 server {
     listen 443 ssl http2;
@@ -133,19 +165,23 @@ server {
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
 }
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${DOMAIN};
+    return 301 https://\$server_name\$request_uri;
+}
 EOF
 
-if [ ! -f "$NGINX_ENABLED_FILE" ]; then
-    sudo ln -s $NGINX_CONF_FILE $NGINX_ENABLED_FILE
-fi
-
 sudo nginx -t && sudo systemctl reload nginx
+echo -e "${GREEN}✔ Nginx настроен с SSL.${NC}"
 
 echo -e "\n${CYAN}Шаг 5: Сборка и запуск Docker-контейнера...${NC}"
-if [ "$(sudo docker-compose ps -q)" ]; then
-    sudo docker-compose down
+if [ "$(sudo docker compose ps -q 2>/dev/null)" ]; then
+    sudo docker compose down
 fi
-sudo docker-compose up -d --build
+sudo docker compose up -d --build
 
 echo -e "\n\n${GREEN}=====================================================${NC}"
 echo -e "${GREEN}      🎉 Установка успешно завершена! 🎉      ${NC}"
