@@ -245,11 +245,18 @@ def get_support_router() -> Router:
 
     @support_router.message(Command("newticket"))
     async def new_ticket_handler(message: types.Message, bot: Bot, state: FSMContext):
-        await state.clear()
         user_id = message.from_user.id
 
         old_thread_id = database.get_support_thread_id(user_id)
         if old_thread_id:
+            status = get_ticket_status(user_id)
+            if status and status != TicketStatus.CLOSED.value:
+                await message.answer(
+                    "📬 <b>У вас уже есть открытый тикет.</b>\n\n"
+                    "Дождитесь его закрытия или просто напишите сообщение.",
+                    parse_mode=ParseMode.HTML
+                )
+                return
             database.delete_support_thread(user_id)
             if SUPPORT_GROUP_ID:
                 try:
@@ -261,6 +268,7 @@ def get_support_router() -> Router:
                 except:
                     pass
 
+        await state.clear()
         await message.answer(
             "🆕 <b>Создание нового тикета</b>\n\n"
             "Выберите категорию вашего обращения:",
@@ -333,9 +341,9 @@ def get_support_router() -> Router:
         await state.clear()
 
         await callback.message.edit_text(
-            f"✅ <b>Тикет #{thread_id} создан!</b>\n\n"
+            f"✅ <b>Тикет создан!</b>\n\n"
             f"📂 Категория: {cat_name}\n\n"
-            f"Теперь просто пишите сообщения — они будут отправлены в поддержку.",
+            f"Опишите вашу проблему подробно. Прикрепите скриншоты, если это поможет.",
             parse_mode=ParseMode.HTML
         )
 

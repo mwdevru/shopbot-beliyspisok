@@ -98,7 +98,21 @@ def initialize_db():
     
     cursor.execute('''CREATE TABLE IF NOT EXISTS bot_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '')''')
     
-    cursor.execute('''CREATE TABLE IF NOT EXISTS support_threads (user_id INTEGER PRIMARY KEY, thread_id INTEGER NOT NULL)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS support_threads (
+        user_id INTEGER PRIMARY KEY, thread_id INTEGER NOT NULL,
+        category TEXT, status TEXT DEFAULT 'open', priority TEXT DEFAULT 'normal',
+        created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+    
+    cursor.execute("PRAGMA table_info(support_threads)")
+    st_columns = [col[1] for col in cursor.fetchall()]
+    if 'category' not in st_columns:
+        cursor.execute("ALTER TABLE support_threads ADD COLUMN category TEXT")
+    if 'status' not in st_columns:
+        cursor.execute("ALTER TABLE support_threads ADD COLUMN status TEXT DEFAULT 'open'")
+    if 'priority' not in st_columns:
+        cursor.execute("ALTER TABLE support_threads ADD COLUMN priority TEXT DEFAULT 'normal'")
+    if 'created_date' not in st_columns:
+        cursor.execute("ALTER TABLE support_threads ADD COLUMN created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
     
     cursor.execute('''CREATE TABLE IF NOT EXISTS plans (
         plan_id INTEGER PRIMARY KEY AUTOINCREMENT, plan_name TEXT NOT NULL,
@@ -562,9 +576,9 @@ def get_latest_transaction(user_id: int) -> Optional[Dict]:
     return dict(row) if row else None
 
 
-def add_support_thread(user_id: int, thread_id: int):
+def add_support_thread(user_id: int, thread_id: int, category: str = None):
     conn = get_sync_conn()
-    conn.execute("INSERT OR REPLACE INTO support_threads (user_id, thread_id) VALUES (?, ?)", (user_id, thread_id))
+    conn.execute("INSERT OR REPLACE INTO support_threads (user_id, thread_id, category) VALUES (?, ?, ?)", (user_id, thread_id, category))
     conn.commit()
 
 
@@ -573,6 +587,50 @@ def get_support_thread_id(user_id: int) -> Optional[int]:
     cursor.execute("SELECT thread_id FROM support_threads WHERE user_id = ?", (user_id,))
     result = cursor.fetchone()
     return result[0] if result else None
+
+
+def get_support_ticket_status(user_id: int) -> Optional[str]:
+    cursor = get_sync_conn().cursor()
+    cursor.execute("SELECT status FROM support_threads WHERE user_id = ?", (user_id,))
+    result = cursor.fetchone()
+    return result[0] if result else None
+
+
+def update_support_ticket_status(user_id: int, status: str):
+    conn = get_sync_conn()
+    conn.execute("UPDATE support_threads SET status = ? WHERE user_id = ?", (status, user_id))
+    conn.commit()
+
+
+def get_support_ticket_priority(user_id: int) -> Optional[str]:
+    cursor = get_sync_conn().cursor()
+    cursor.execute("SELECT priority FROM support_threads WHERE user_id = ?", (user_id,))
+    result = cursor.fetchone()
+    return result[0] if result else None
+
+
+def update_support_ticket_priority(user_id: int, priority: str):
+    conn = get_sync_conn()
+    conn.execute("UPDATE support_threads SET priority = ? WHERE user_id = ?", (priority, user_id))
+    conn.commit()
+
+
+def delete_support_thread(user_id: int):
+    conn = get_sync_conn()
+    conn.execute("DELETE FROM support_threads WHERE user_id = ?", (user_id,))
+    conn.commit()
+
+
+def increment_ticket_messages(user_id: int):
+    pass
+
+
+def add_ticket_note(user_id: int, note: str, author: str):
+    pass
+
+
+def save_support_rating(user_id: int, rating: int):
+    pass
 
 
 def get_user_id_by_thread(thread_id: int) -> Optional[int]:
