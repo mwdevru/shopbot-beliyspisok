@@ -229,48 +229,13 @@ def get_support_router() -> Router:
         if thread_id:
             await message.answer(
                 "📬 <b>У вас уже есть открытый тикет.</b>\n\n"
-                "Просто напишите сообщение — оно будет отправлено в поддержку.\n\n"
-                "Для нового тикета: /newticket",
+                "Просто напишите сообщение — оно будет отправлено в поддержку.",
                 parse_mode=ParseMode.HTML
             )
             return
 
         await message.answer(
             "👋 <b>Добро пожаловать в службу поддержки!</b>\n\n"
-            "Выберите категорию вашего обращения:",
-            reply_markup=create_category_keyboard(),
-            parse_mode=ParseMode.HTML
-        )
-        await state.set_state(SupportStates.waiting_for_category)
-
-    @support_router.message(Command("newticket"))
-    async def new_ticket_handler(message: types.Message, bot: Bot, state: FSMContext):
-        user_id = message.from_user.id
-
-        old_thread_id = database.get_support_thread_id(user_id)
-        if old_thread_id:
-            status = get_ticket_status(user_id)
-            if status and status != TicketStatus.CLOSED.value:
-                await message.answer(
-                    "📬 <b>У вас уже есть открытый тикет.</b>\n\n"
-                    "Дождитесь его закрытия или просто напишите сообщение.",
-                    parse_mode=ParseMode.HTML
-                )
-                return
-            database.delete_support_thread(user_id)
-            if SUPPORT_GROUP_ID:
-                try:
-                    await bot.send_message(
-                        chat_id=SUPPORT_GROUP_ID,
-                        message_thread_id=old_thread_id,
-                        text="🔄 Пользователь создал новый тикет. Этот тикет закрыт."
-                    )
-                except:
-                    pass
-
-        await state.clear()
-        await message.answer(
-            "🆕 <b>Создание нового тикета</b>\n\n"
             "Выберите категорию вашего обращения:",
             reply_markup=create_category_keyboard(),
             parse_mode=ParseMode.HTML
@@ -353,7 +318,7 @@ def get_support_router() -> Router:
         await callback.message.edit_text("❌ Создание тикета отменено.")
         await state.clear()
 
-    @support_router.message(F.chat.type == "private", ~Command("start"), ~Command("newticket"))
+    @support_router.message(F.chat.type == "private", ~Command("start"))
     async def from_user_to_admin(message: types.Message, bot: Bot, state: FSMContext):
         current_state = await state.get_state()
         if current_state == SupportStates.waiting_for_category.state:
