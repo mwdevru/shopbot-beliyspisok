@@ -917,9 +917,16 @@ def create_webhook_app(bot_controller_instance):
     @login_required
     def do_update_api():
         try:
+            for git_path in ['/app/project', '/app', '.']:
+                result = subprocess.run(['git', 'status'], cwd=git_path, capture_output=True, timeout=5)
+                if result.returncode == 0:
+                    break
+            else:
+                return jsonify({'success': False, 'message': 'Git репозиторий не найден'}), 500
+            
             result = subprocess.run(
                 ['git', 'pull', 'origin', 'main'],
-                cwd='/app',
+                cwd=git_path,
                 capture_output=True,
                 text=True,
                 timeout=60
@@ -934,13 +941,11 @@ def create_webhook_app(bot_controller_instance):
             else:
                 return jsonify({
                     'success': False,
-                    'message': 'Ошибка git pull',
-                    'error': result.stderr
+                    'message': f'Ошибка git pull: {result.stderr}'
                 }), 500
         except subprocess.TimeoutExpired:
             return jsonify({'success': False, 'message': 'Таймаут операции'}), 500
         except Exception as e:
-            logger.error(f"Update error: {e}")
             return jsonify({'success': False, 'message': str(e)}), 500
 
     return flask_app
