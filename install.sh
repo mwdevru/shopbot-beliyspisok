@@ -293,6 +293,7 @@ server {
 EOF
 
 sudo cp -f src/shop_bot/webhook_server/static/502.html /var/www/html/502.html
+echo -e "  ${GREEN}${CHECK}${NC} Страница 502 установлена"
 
 run_silent "Применение SSL-конфигурации" bash -c "sudo nginx -t && sudo systemctl reload nginx"
 
