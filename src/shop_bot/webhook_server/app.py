@@ -487,18 +487,16 @@ def create_webhook_app(bot_controller_instance):
             flash('API ключ не настроен.', 'danger')
             return redirect(url_for('settings_page'))
         
-        data = {'balance': None, 'grants': [], 'history': [], 'tariffs': []}
+        data = {'balance': None, 'history': [], 'tariffs': []}
         
         try:
             loop = current_app.config.get('EVENT_LOOP')
             if loop and loop.is_running():
                 balance_future = asyncio.run_coroutine_threadsafe(mwshark_api.get_api_balance(api_key), loop)
-                grants_future = asyncio.run_coroutine_threadsafe(mwshark_api.get_user_grants(api_key), loop)
                 history_future = asyncio.run_coroutine_threadsafe(mwshark_api.get_api_history(api_key), loop)
                 tariffs_future = asyncio.run_coroutine_threadsafe(mwshark_api.get_api_tariffs(api_key), loop)
                 
                 data['balance'] = balance_future.result(timeout=5)
-                data['grants'] = grants_future.result(timeout=5).get('grants', [])
                 data['history'] = history_future.result(timeout=5).get('purchases', [])
                 data['tariffs'] = tariffs_future.result(timeout=5).get('tariffs', [])
         except Exception as e:
@@ -604,16 +602,19 @@ def create_webhook_app(bot_controller_instance):
         
         api_subscription = None
         api_key = get_setting("mwshark_api_key")
-        if api_key:
+        if api_key and user['user_keys']:
             try:
                 loop = current_app.config.get('EVENT_LOOP')
                 if loop and loop.is_running():
-                    future = asyncio.run_coroutine_threadsafe(
-                        mwshark_api.get_user_subscription(api_key, user_id), loop
-                    )
-                    result = future.result(timeout=5)
-                    if result.get('success'):
-                        api_subscription = result.get('subscription')
+                    first_key = user['user_keys'][0]
+                    uuid = first_key.get('subscription_uuid')
+                    if uuid:
+                        future = asyncio.run_coroutine_threadsafe(
+                            mwshark_api.get_subscription_by_uuid(api_key, uuid), loop
+                        )
+                        result = future.result(timeout=5)
+                        if result.get('success'):
+                            api_subscription = result.get('subscription')
             except Exception as e:
                 logger.error(f"Get subscription error: {e}")
         

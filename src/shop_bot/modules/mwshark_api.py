@@ -171,3 +171,8 @@ async def calculate_api_price(api_key: str, days: int, devices: int = 1, extra_s
 async def get_api_history(api_key: str) -> Dict[str, Any]:
     api = MWSharkAPI(api_key)
     return await api.get_history()
+
+
+async def get_subscription_by_uuid(api_key: str, uuid: str) -> Dict[str, Any]:
+    api = MWSharkAPI(api_key)
+    return await api.get_subscription_status(uuid)

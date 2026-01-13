@@ -24,7 +24,7 @@
 {% endif %}
 <div class="grid-2">
 <div>
-<div class="card" style="margin-bottom:24px">
+<div class="card">
 <div class="card-title">Тарифы API</div>
 {% if data.tariffs %}
 <div class="table-wrap">
@@ -43,28 +43,6 @@
 </div>
 {% else %}
 <p style="color:var(--text-muted)">Нет данных</p>
-{% endif %}
-</div>
-<div class="card">
-<div class="card-title">Активные гранты (можно отозвать)</div>
-{% if data.grants %}
-<div class="table-wrap">
-<table>
-<thead><tr><th>User ID</th><th>Дней</th><th>Сумма</th><th>Грантов</th></tr></thead>
-<tbody>
-{% for g in data.grants %}
-<tr>
-<td><code>{{ g.target_user_id }}</code></td>
-<td>{{ g.total_days }}</td>
-<td>{{ g.total_amount }} ₽</td>
-<td>{{ g.grants_count }}</td>
-</tr>
-{% endfor %}
-</tbody>
-</table>
-</div>
-{% else %}
-<p style="color:var(--text-muted)">Нет активных грантов</p>
 {% endif %}
 </div>
 </div>
