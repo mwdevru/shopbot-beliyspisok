@@ -100,7 +100,7 @@ logging.getLogger('shop_bot').addHandler(buffered_handler)
 logging.getLogger('aiogram').addHandler(buffered_handler)
 logging.getLogger('aiohttp').addHandler(buffered_handler)
 
-CURRENT_VERSION = "1.4.9"
+CURRENT_VERSION = "1.5.0"
 GITHUB_REPO = "mwdevru/shopbot-beliyspisok"
 
 from shop_bot.modules import mwshark_api
