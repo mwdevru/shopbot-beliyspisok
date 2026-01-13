@@ -89,13 +89,17 @@ echo -e "${BOLD}${GREEN}║       🤖 VPN Reseller Bot - Установщик  
 echo -e "${BOLD}${GREEN}╚════════════════════════════════════════════════════╝${NC}"
 echo ""
 
-update_nginx_error_page() {
-    sudo cp -f src/shop_bot/webhook_server/static/502.html /var/www/html/502.html 2>/dev/null || true
+update_nginx_config() {
+    local domain=$(grep -oP 'server_name \K[^;]+' "$NGINX_CONF_FILE" | head -1)
+    local need_update=0
     
-    if ! grep -q "error_page 502" "$NGINX_CONF_FILE"; then
-        local domain=$(grep -oP 'server_name \K[^;]+' "$NGINX_CONF_FILE" | head -1)
-        
-        sudo bash -c "cat > $NGINX_CONF_FILE" <<EOF
+    sudo cp -f src/shop_bot/webhook_server/static/502.html /var/www/html/502.html 2>/dev/null
+    
+    grep -q "error_page 502" "$NGINX_CONF_FILE" || need_update=1
+    grep -q "root /var/www/html" "$NGINX_CONF_FILE" || need_update=1
+    
+    if [ $need_update -eq 1 ]; then
+        sudo bash -c "cat > $NGINX_CONF_FILE" <<NGINXEOF
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
@@ -114,10 +118,10 @@ server {
 
     location / {
         proxy_pass http://127.0.0.1:1488;
-        proxy_set_header Host \\\$host;
-        proxy_set_header X-Real-IP \\\$remote_addr;
-        proxy_set_header X-Forwarded-For \\\$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \\\$scheme;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
     }
 }
 
@@ -125,9 +129,9 @@ server {
     listen 80;
     listen [::]:80;
     server_name ${domain};
-    return 301 https://\\\$server_name\\\$request_uri;
+    return 301 https://\$server_name\$request_uri;
 }
-EOF
+NGINXEOF
         sudo nginx -t && sudo systemctl reload nginx
         return 0
     fi
@@ -148,11 +152,13 @@ if [ -f "$NGINX_CONF_FILE" ]; then
     run_silent "Получение обновлений из Git" git pull
 
     step_header "Проверка конфигурации"
-    if update_nginx_error_page > /dev/null 2>&1; then
+    if update_nginx_config 2>/dev/null; then
         echo -e "  ${GREEN}${CHECK}${NC} Nginx конфиг обновлён"
     else
         echo -e "  ${GREEN}${CHECK}${NC} Nginx конфиг актуален"
     fi
+    sudo cp -f src/shop_bot/webhook_server/static/502.html /var/www/html/502.html 2>/dev/null
+    echo -e "  ${GREEN}${CHECK}${NC} Страница 502 обновлена"
 
     step_header "Перезапуск сервисов"
     run_docker
