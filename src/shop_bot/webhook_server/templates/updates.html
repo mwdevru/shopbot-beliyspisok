@@ -46,8 +46,16 @@ document.getElementById('checkBtn').textContent='...';
 fetch('/api/check-update').then(r=>r.json()).then(data=>{
 document.getElementById('checkBtn').disabled=false;
 document.getElementById('checkBtn').textContent='🔄 Проверить';
+console.log('Update check result:', data);
+if(data.error){
+document.getElementById('versionStatus').innerHTML='<span style="color:var(--danger)">Ошибка: '+data.error+'</span>';
+return;
+}
+if(data.message){
+document.getElementById('versionStatus').innerHTML='<span style="color:var(--warning)">'+data.message+'</span>';
+}
 if(data.has_update){
-document.getElementById('versionStatus').innerHTML='<span style="color:var(--warning)">Доступно обновление</span>';
+document.getElementById('versionStatus').innerHTML='<span style="color:var(--warning)">Доступно обновление: v'+data.latest+'</span>';
 document.getElementById('updateInfo').style.display='block';
 document.getElementById('noUpdate').style.display='none';
 document.getElementById('latestVersion').textContent='v'+data.latest;
@@ -55,15 +63,16 @@ document.getElementById('releaseChangelog').textContent=data.changelog||'Нет 
 document.getElementById('releaseUrl').href=data.url;
 document.getElementById('updateBtn').style.display='inline-flex';
 }else{
-document.getElementById('versionStatus').innerHTML='<span style="color:var(--success)">Актуальная</span>';
+document.getElementById('versionStatus').innerHTML='<span style="color:var(--success)">Актуальная (GitHub: v'+data.latest+')</span>';
 document.getElementById('updateInfo').style.display='none';
 document.getElementById('noUpdate').style.display='block';
 document.getElementById('updateBtn').style.display='none';
 }
-}).catch(()=>{
+}).catch((e)=>{
 document.getElementById('checkBtn').disabled=false;
 document.getElementById('checkBtn').textContent='🔄 Проверить';
-document.getElementById('versionStatus').innerHTML='<span style="color:var(--danger)">Ошибка</span>';
+document.getElementById('versionStatus').innerHTML='<span style="color:var(--danger)">Ошибка соединения</span>';
+console.error('Update check error:', e);
 });
 }
 function forceUpdate(){

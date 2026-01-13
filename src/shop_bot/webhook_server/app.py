@@ -829,8 +829,8 @@ def create_webhook_app(bot_controller_instance):
     def check_update_api():
         def parse_version(v):
             try:
-                parts = v.replace('v', '').split('.')
-                return tuple(int(p) for p in parts[:3])
+                parts = v.replace('v', '').replace('-', '.').split('.')
+                return tuple(int(p) for p in parts[:3] if p.isdigit())
             except:
                 return (0, 0, 0)
         
@@ -844,20 +844,29 @@ def create_webhook_app(bot_controller_instance):
                 latest_version = data.get('tag_name', '').lstrip('v')
                 
                 if not latest_version:
-                    return jsonify({'current': CURRENT_VERSION, 'latest': CURRENT_VERSION, 'has_update': False})
+                    return jsonify({'current': CURRENT_VERSION, 'latest': CURRENT_VERSION, 'has_update': False, 'message': 'Не удалось получить версию с GitHub'})
                 
-                has_update = parse_version(latest_version) > parse_version(CURRENT_VERSION)
+                current_parsed = parse_version(CURRENT_VERSION)
+                latest_parsed = parse_version(latest_version)
+                has_update = latest_parsed > current_parsed
+                
+                logger.info(f"Version check: current={CURRENT_VERSION} ({current_parsed}), latest={latest_version} ({latest_parsed}), has_update={has_update}")
                 
                 return jsonify({
                     'current': CURRENT_VERSION,
                     'latest': latest_version,
                     'has_update': has_update,
                     'changelog': data.get('body', ''),
-                    'url': data.get('html_url', f'https://github.com/{GITHUB_REPO}/releases')
+                    'url': data.get('html_url', f'https://github.com/{GITHUB_REPO}/releases'),
+                    'debug': {
+                        'current_parsed': list(current_parsed),
+                        'latest_parsed': list(latest_parsed)
+                    }
                 })
         except urllib.error.HTTPError as e:
             if e.code == 404:
-                return jsonify({'current': CURRENT_VERSION, 'latest': CURRENT_VERSION, 'has_update': False})
+                return jsonify({'current': CURRENT_VERSION, 'latest': CURRENT_VERSION, 'has_update': False, 'message': 'Релизы не найдены на GitHub'})
+            logger.error(f"Check update HTTP error: {e}")
             return jsonify({'error': str(e), 'current': CURRENT_VERSION, 'has_update': False})
         except Exception as e:
             logger.error(f"Check update error: {e}")
