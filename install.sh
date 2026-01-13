@@ -107,7 +107,7 @@ NGINX_ENABLED_FILE="/etc/nginx/sites-enabled/${PROJECT_DIR}.conf"
 
 sudo rm -rf /etc/nginx/sites-enabled/default
 
-# Создаем временную конфигурацию для получения сертификата
+
 sudo bash -c "cat > $NGINX_CONF_FILE" <<EOF
 server {
     listen 80;
@@ -127,7 +127,7 @@ fi
 
 sudo nginx -t && sudo systemctl reload nginx
 
-# Получаем SSL-сертификат
+
 if [ -d "/etc/letsencrypt/live/$DOMAIN" ]; then
     echo -e "${GREEN}✔ SSL-сертификаты уже существуют.${NC}"
 else
@@ -139,13 +139,13 @@ else
     echo -e "${GREEN}✔ SSL-сертификаты получены.${NC}"
 fi
 
-# Проверяем наличие сертификатов
+
 if [ ! -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
     echo -e "${RED}Ошибка: SSL-сертификаты не найдены!${NC}"
     exit 1
 fi
 
-# Создаем финальную конфигурацию с SSL
+
 sudo bash -c "cat > $NGINX_CONF_FILE" <<EOF
 server {
     listen 443 ssl http2;
