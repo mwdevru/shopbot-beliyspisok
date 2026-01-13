@@ -211,6 +211,12 @@ server {
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
+    error_page 502 503 504 /502.html;
+    location = /502.html {
+        root $(pwd)/src/shop_bot/webhook_server/static;
+        internal;
+    }
+
     location / {
         proxy_pass http://127.0.0.1:1488;
         proxy_set_header Host \$host;
