@@ -832,12 +832,14 @@ def create_webhook_app(bot_controller_instance):
             import urllib.error
             
             local_commit = None
-            try:
-                result = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd='/app', capture_output=True, text=True, timeout=5)
-                if result.returncode == 0:
-                    local_commit = result.stdout.strip()[:7]
-            except:
-                pass
+            for git_path in ['/app', '.', os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]:
+                try:
+                    result = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=git_path, capture_output=True, text=True, timeout=5)
+                    if result.returncode == 0:
+                        local_commit = result.stdout.strip()[:7]
+                        break
+                except:
+                    continue
             
             url = f"https://api.github.com/repos/{GITHUB_REPO}/commits/main"
             req = urllib.request.Request(url, headers={'User-Agent': 'ShopBot', 'Accept': 'application/vnd.github.v3+json'})
@@ -847,7 +849,7 @@ def create_webhook_app(bot_controller_instance):
                 commit_message = data.get('commit', {}).get('message', '').split('\n')[0]
                 commit_date = data.get('commit', {}).get('committer', {}).get('date', '')
                 
-                has_update = local_commit != remote_commit if local_commit else False
+                has_update = local_commit != remote_commit if local_commit else True
                 
                 return jsonify({
                     'current': CURRENT_VERSION,
