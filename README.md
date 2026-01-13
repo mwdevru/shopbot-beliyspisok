@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.4.8-blue?style=for-the-badge" alt="Version">
+  <img src="https://img.shields.io/badge/version-1.4.9-blue?style=for-the-badge" alt="Version">
   <img src="https://img.shields.io/badge/python-3.11+-green?style=for-the-badge&logo=python&logoColor=white" alt="Python">
   <img src="https://img.shields.io/badge/docker-ready-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker">
   <img src="https://img.shields.io/badge/license-GPL--3.0-orange?style=for-the-badge" alt="License">
