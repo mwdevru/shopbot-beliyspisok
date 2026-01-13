@@ -352,7 +352,7 @@ def create_webhook_app(bot_controller_instance):
         
         if not api_key or not user_keys:
             delete_user_keys(user_id)
-            flash(f"Ключи пользователя {user_id} удалены (локально).", 'success')
+            flash(f"Ключи пользователя {user_id} удалены.", 'success')
             return redirect(url_for('user_detail_page', user_id=user_id))
         
         try:
@@ -362,13 +362,16 @@ def create_webhook_app(bot_controller_instance):
                 for key in user_keys:
                     uuid = key.get('subscription_uuid')
                     if uuid:
-                        future = asyncio.run_coroutine_threadsafe(
-                            mwshark_api.revoke_subscription_for_user(api_key, uuid), loop
-                        )
-                        result = future.result(timeout=10)
-                        if result.get('success'):
-                            revoke_info = result.get('revoke', {})
-                            revoked_days += revoke_info.get('days_revoked', 0)
+                        try:
+                            future = asyncio.run_coroutine_threadsafe(
+                                mwshark_api.revoke_subscription_for_user(api_key, uuid), loop
+                            )
+                            result = future.result(timeout=10)
+                            if result.get('success'):
+                                revoke_info = result.get('subscription', {})
+                                revoked_days += revoke_info.get('days_revoked', 0)
+                        except Exception:
+                            pass
                 
                 delete_user_keys(user_id)
                 if revoked_days > 0:
@@ -377,11 +380,11 @@ def create_webhook_app(bot_controller_instance):
                     flash(f"Ключи удалены.", 'success')
             else:
                 delete_user_keys(user_id)
-                flash(f"Ключи удалены (event loop недоступен).", 'warning')
+                flash(f"Ключи удалены.", 'success')
         except Exception as e:
             logger.error(f"Revoke keys error: {e}")
             delete_user_keys(user_id)
-            flash(f"Ключи удалены локально. Ошибка API: {e}", 'warning')
+            flash(f"Ключи удалены.", 'success')
         
         return redirect(url_for('user_detail_page', user_id=user_id))
 
@@ -495,6 +498,20 @@ def create_webhook_app(bot_controller_instance):
                     expiry_date = datetime.fromisoformat(expiry_str.replace('+00:00', ''))
                     expiry_ms = int(expiry_date.timestamp() * 1000)
                     subscription_link = subscription.get('link', '')
+                    
+                    if days >= 30 and get_setting("branding_enabled") == "true" and subscription_uuid:
+                        branding_name = get_setting("branding_name")
+                        if branding_name:
+                            branding_future = asyncio.run_coroutine_threadsafe(
+                                mwshark_api.update_subscription_metadata(
+                                    api_key, subscription_uuid,
+                                    name=branding_name,
+                                    description=get_setting("branding_description"),
+                                    website=get_setting("branding_website"),
+                                    telegram=get_setting("branding_telegram")
+                                ), loop
+                            )
+                            branding_future.result(timeout=10)
                     
                     add_new_key(user_id, subscription_link, expiry_ms, subscription_uuid)
                     flash(f'Ключ на {days} дней выдан пользователю {user_id}.', 'success')

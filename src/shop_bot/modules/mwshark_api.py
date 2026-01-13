@@ -17,34 +17,43 @@ class MWSharkAPI:
 
     async def _request(self, method: str, endpoint: str, data: dict = None) -> Dict[str, Any]:
         url = f"{API_BASE_URL}{endpoint}"
+        logger.info(f"API Request: {method} {endpoint} | Data: {data}")
         try:
             async with aiohttp.ClientSession() as session:
                 if method == "GET":
                     async with session.get(url, headers=self.headers, params=data) as response:
                         result = await response.json()
                         if response.status != 200:
-                            logger.error(f"API Error: {response.status} - {result}")
+                            logger.error(f"API Error: {method} {endpoint} | Status: {response.status} | Response: {result}")
+                        else:
+                            logger.info(f"API Success: {method} {endpoint} | Response: {result}")
                         return result
                 elif method == "POST":
                     async with session.post(url, headers=self.headers, json=data) as response:
                         result = await response.json()
                         if response.status != 200:
-                            logger.error(f"API Error: {response.status} - {result}")
+                            logger.error(f"API Error: {method} {endpoint} | Status: {response.status} | Response: {result}")
+                        else:
+                            logger.info(f"API Success: {method} {endpoint} | Response: {result}")
                         return result
                 elif method == "PUT":
                     async with session.put(url, headers=self.headers, json=data) as response:
                         result = await response.json()
                         if response.status != 200:
-                            logger.error(f"API Error: {response.status} - {result}")
+                            logger.error(f"API Error: {method} {endpoint} | Status: {response.status} | Response: {result}")
+                        else:
+                            logger.info(f"API Success: {method} {endpoint} | Response: {result}")
                         return result
                 elif method == "DELETE":
                     async with session.delete(url, headers=self.headers, json=data) as response:
                         result = await response.json()
                         if response.status != 200:
-                            logger.error(f"API Error: {response.status} - {result}")
+                            logger.error(f"API Error: {method} {endpoint} | Status: {response.status} | Response: {result}")
+                        else:
+                            logger.info(f"API Success: {method} {endpoint} | Response: {result}")
                         return result
         except Exception as e:
-            logger.error(f"MWShark API request failed: {e}", exc_info=True)
+            logger.error(f"API Exception: {method} {endpoint} | Data: {data} | Error: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
     async def get_balance(self) -> Dict[str, Any]:
