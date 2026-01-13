@@ -17,7 +17,7 @@ from flask import Flask, request, render_template, redirect, url_for, flash, ses
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-CURRENT_VERSION = "1.4.8"
+CURRENT_VERSION = "1.4.9"
 GITHUB_REPO = "mwdevru/shopbot-beliyspisok"
 
 from shop_bot.modules import mwshark_api
