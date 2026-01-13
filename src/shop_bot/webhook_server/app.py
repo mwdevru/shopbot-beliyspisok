@@ -348,7 +348,9 @@ def create_webhook_app(bot_controller_instance):
     @login_required
     def revoke_keys_route(user_id):
         api_key = get_setting("mwshark_api_key")
-        if not api_key:
+        user_keys = get_user_keys(user_id)
+        
+        if not api_key or not user_keys:
             delete_user_keys(user_id)
             flash(f"Ключи пользователя {user_id} удалены (локально).", 'success')
             return redirect(url_for('user_detail_page', user_id=user_id))
@@ -356,23 +358,23 @@ def create_webhook_app(bot_controller_instance):
         try:
             loop = current_app.config.get('EVENT_LOOP')
             if loop and loop.is_running():
-                future = asyncio.run_coroutine_threadsafe(
-                    mwshark_api.revoke_subscription_for_user(api_key, user_id), loop
-                )
-                result = future.result(timeout=10)
+                revoked_days = 0
+                for key in user_keys:
+                    uuid = key.get('subscription_uuid')
+                    if uuid:
+                        future = asyncio.run_coroutine_threadsafe(
+                            mwshark_api.revoke_subscription_for_user(api_key, uuid), loop
+                        )
+                        result = future.result(timeout=10)
+                        if result.get('success'):
+                            revoke_info = result.get('revoke', {})
+                            revoked_days += revoke_info.get('days_revoked', 0)
                 
-                if result.get('success'):
-                    revoke_info = result.get('revoke', {})
-                    days_revoked = revoke_info.get('days_revoked', 0)
-                    delete_user_keys(user_id)
-                    flash(f"Подписка отозвана: {days_revoked} дней. Ключи удалены.", 'success')
+                delete_user_keys(user_id)
+                if revoked_days > 0:
+                    flash(f"Подписки отозваны: {revoked_days} дней. Ключи удалены.", 'success')
                 else:
-                    error = result.get('error', 'Неизвестная ошибка')
-                    if 'not found' in error.lower() or 'no grants' in error.lower():
-                        delete_user_keys(user_id)
-                        flash(f"Ключи удалены (грантов для отзыва не найдено).", 'success')
-                    else:
-                        flash(f"Ошибка API: {error}", 'danger')
+                    flash(f"Ключи удалены.", 'success')
             else:
                 delete_user_keys(user_id)
                 flash(f"Ключи удалены (event loop недоступен).", 'warning')
@@ -531,13 +533,17 @@ def create_webhook_app(bot_controller_instance):
     def delete_user_route(user_id):
         api_key = get_setting("mwshark_api_key")
         if api_key:
+            user_keys = get_user_keys(user_id)
             try:
                 loop = current_app.config.get('EVENT_LOOP')
                 if loop and loop.is_running():
-                    future = asyncio.run_coroutine_threadsafe(
-                        mwshark_api.revoke_subscription_for_user(api_key, user_id), loop
-                    )
-                    future.result(timeout=10)
+                    for key in user_keys:
+                        uuid = key.get('subscription_uuid')
+                        if uuid:
+                            future = asyncio.run_coroutine_threadsafe(
+                                mwshark_api.revoke_subscription_for_user(api_key, uuid), loop
+                            )
+                            future.result(timeout=10)
             except Exception as e:
                 logger.error(f"Revoke before delete error: {e}")
         delete_user(user_id)
