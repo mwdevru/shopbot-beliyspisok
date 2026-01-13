@@ -90,9 +90,10 @@ echo -e "${BOLD}${GREEN}╚═════════════════�
 echo ""
 
 update_nginx_error_page() {
+    sudo cp -f src/shop_bot/webhook_server/static/502.html /var/www/html/502.html 2>/dev/null || true
+    
     if ! grep -q "error_page 502" "$NGINX_CONF_FILE"; then
         local domain=$(grep -oP 'server_name \K[^;]+' "$NGINX_CONF_FILE" | head -1)
-        local project_path=$(pwd)
         
         sudo bash -c "cat > $NGINX_CONF_FILE" <<EOF
 server {
@@ -107,7 +108,7 @@ server {
 
     error_page 502 503 504 /502.html;
     location = /502.html {
-        root ${project_path}/src/shop_bot/webhook_server/static;
+        root /var/www/html;
         internal;
     }
 
@@ -264,7 +265,7 @@ server {
 
     error_page 502 503 504 /502.html;
     location = /502.html {
-        root $(pwd)/src/shop_bot/webhook_server/static;
+        root /var/www/html;
         internal;
     }
 
@@ -284,6 +285,8 @@ server {
     return 301 https://\$server_name\$request_uri;
 }
 EOF
+
+sudo cp -f src/shop_bot/webhook_server/static/502.html /var/www/html/502.html
 
 run_silent "Применение SSL-конфигурации" bash -c "sudo nginx -t && sudo systemctl reload nginx"
 
