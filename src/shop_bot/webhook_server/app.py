@@ -368,6 +368,8 @@ def create_webhook_app(bot_controller_instance):
     @login_required
     def setup_page():
         setup_state = get_setup_state()
+        if not setup_state["needs_setup"]:
+            return redirect(url_for('dashboard_page'))
         settings = setup_state["settings"]
         form_keys = [
             "panel_login", "panel_password", "mwshark_api_key", "telegram_bot_token",
