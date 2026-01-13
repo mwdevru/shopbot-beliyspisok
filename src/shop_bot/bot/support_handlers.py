@@ -474,7 +474,13 @@ def get_support_router() -> Router:
         action = action.replace("ticket_", "")
         user_id = int(user_id_str)
 
+        current_status = get_ticket_status(user_id)
+        current_priority = get_ticket_priority(user_id)
+
         if action == "resolve":
+            if current_status == TicketStatus.RESOLVED.value:
+                await callback.answer("Уже отмечен как решённый", show_alert=False)
+                return
             set_ticket_status(user_id, TicketStatus.RESOLVED)
             await callback.answer("✅ Тикет отмечен как решённый")
             try:
@@ -488,6 +494,9 @@ def get_support_router() -> Router:
                 pass
 
         elif action == "close":
+            if current_status == TicketStatus.CLOSED.value:
+                await callback.answer("Уже закрыт", show_alert=False)
+                return
             set_ticket_status(user_id, TicketStatus.CLOSED)
             await callback.answer("🔒 Тикет закрыт")
             try:
@@ -508,6 +517,9 @@ def get_support_router() -> Router:
                     pass
 
         elif action == "wait":
+            if current_status == TicketStatus.WAITING_USER.value:
+                await callback.answer("Уже ожидает ответа", show_alert=False)
+                return
             set_ticket_status(user_id, TicketStatus.WAITING_USER)
             await callback.answer("⏳ Ожидание ответа пользователя")
             try:
@@ -521,13 +533,11 @@ def get_support_router() -> Router:
                 pass
 
         elif action == "urgent":
+            if current_priority == TicketPriority.URGENT.value:
+                await callback.answer("Уже срочный", show_alert=False)
+                return
             set_ticket_priority(user_id, TicketPriority.URGENT)
             await callback.answer("🔴 Приоритет: СРОЧНО")
-
-        status = get_ticket_status(user_id)
-        priority = get_ticket_priority(user_id)
-        status_text = STATUS_EMOJI.get(TicketStatus(status), "❓") if status else "❓"
-        priority_text = PRIORITY_EMOJI.get(TicketPriority(priority), "🟡") if priority else "🟡"
 
         try:
             await callback.message.edit_reply_markup(
