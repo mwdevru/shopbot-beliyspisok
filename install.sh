@@ -6,14 +6,30 @@ CYAN='\033[0;36m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-handle_error() {
-    echo -e "\n${RED}Ошибка на строке $1. Установка прервана.${NC}"
-    exit 1
-}
-trap 'handle_error $LINENO' ERR
+set -e
 
 read_input() {
     read -p "$1" "$2" < /dev/tty
+}
+
+install_docker_compose() {
+    if ! command -v docker-compose &> /dev/null; then
+        echo -e "${YELLOW}docker-compose не найден. Устанавливаем...${NC}"
+        sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+        sudo chmod +x /usr/local/bin/docker-compose
+        echo -e "${GREEN}✔ docker-compose установлен.${NC}"
+    fi
+}
+
+run_docker() {
+    if ! command -v docker-compose &> /dev/null; then
+        install_docker_compose
+    fi
+    
+    if [ "$(sudo docker-compose ps -q 2>/dev/null)" ]; then
+        sudo docker-compose down --remove-orphans
+    fi
+    sudo docker-compose up -d --build
 }
 
 REPO_URL="https://github.com/mwdevru/shopbot-beliyspisok.git"
@@ -37,7 +53,7 @@ if [ -f "$NGINX_CONF_FILE" ]; then
     echo -e "${GREEN}✔ Код успешно обновлен.${NC}"
 
     echo -e "\n${CYAN}Шаг 2: Пересборка и перезапуск Docker-контейнеров...${NC}"
-    sudo docker-compose down --remove-orphans && sudo docker-compose up -d --build
+    run_docker
     
     echo -e "\n\n${GREEN}==============================================${NC}"
     echo -e "${GREEN}      🎉 Обновление успешно завершено! 🎉      ${NC}"
@@ -64,6 +80,8 @@ install_package "docker" "docker.io"
 install_package "nginx" "nginx"
 install_package "curl" "curl"
 install_package "certbot" "certbot python3-certbot-nginx"
+
+install_docker_compose
 
 for service in docker nginx; do
     if ! sudo systemctl is-active --quiet $service; then
@@ -174,10 +192,7 @@ sudo nginx -t && sudo systemctl reload nginx
 echo -e "${GREEN}✔ Nginx настроен с SSL.${NC}"
 
 echo -e "\n${CYAN}Шаг 5: Сборка и запуск Docker-контейнера...${NC}"
-if [ "$(sudo docker-compose ps -q 2>/dev/null)" ]; then
-    sudo docker-compose down
-fi
-sudo docker-compose up -d --build
+run_docker
 
 echo -e "\n\n${GREEN}=====================================================${NC}"
 echo -e "${GREEN}      🎉 Установка успешно завершена! 🎉      ${NC}"
