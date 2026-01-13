@@ -51,19 +51,16 @@ if(data.error){
 document.getElementById('versionStatus').innerHTML='<span style="color:var(--danger)">Ошибка: '+data.error+'</span>';
 return;
 }
-if(data.message){
-document.getElementById('versionStatus').innerHTML='<span style="color:var(--warning)">'+data.message+'</span>';
-}
 if(data.has_update){
-document.getElementById('versionStatus').innerHTML='<span style="color:var(--warning)">Доступно обновление: v'+data.latest+'</span>';
+document.getElementById('versionStatus').innerHTML='<span style="color:var(--warning)">Доступно обновление</span><br><small style="color:var(--text-muted)">Локальный: '+data.local_commit+' → GitHub: '+data.remote_commit+'</small>';
 document.getElementById('updateInfo').style.display='block';
 document.getElementById('noUpdate').style.display='none';
-document.getElementById('latestVersion').textContent='v'+data.latest;
+document.getElementById('latestVersion').textContent='Коммит: '+data.remote_commit;
 document.getElementById('releaseChangelog').textContent=data.changelog||'Нет описания';
 document.getElementById('releaseUrl').href=data.url;
 document.getElementById('updateBtn').style.display='inline-flex';
 }else{
-document.getElementById('versionStatus').innerHTML='<span style="color:var(--success)">Актуальная (GitHub: v'+data.latest+')</span>';
+document.getElementById('versionStatus').innerHTML='<span style="color:var(--success)">Актуальная</span><br><small style="color:var(--text-muted)">Коммит: '+data.local_commit+'</small>';
 document.getElementById('updateInfo').style.display='none';
 document.getElementById('noUpdate').style.display='block';
 document.getElementById('updateBtn').style.display='none';

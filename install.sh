@@ -4,9 +4,58 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 RED='\033[0;31m'
+BOLD='\033[1m'
 NC='\033[0m'
 
+CHECK="✔"
+CROSS="✖"
+ARROW="➜"
+
 set -e
+
+LOG_FILE=$(mktemp)
+trap "rm -f $LOG_FILE" EXIT
+
+spinner() {
+    local pid=$1
+    local msg=$2
+    local spin='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+    local i=0
+    
+    tput civis
+    while kill -0 $pid 2>/dev/null; do
+        i=$(( (i+1) % 10 ))
+        printf "\r  ${CYAN}${spin:$i:1}${NC} %s..." "$msg"
+        sleep 0.1
+    done
+    tput cnorm
+}
+
+run_silent() {
+    local msg=$1
+    shift
+    
+    "$@" > "$LOG_FILE" 2>&1 &
+    local pid=$!
+    
+    spinner $pid "$msg"
+    
+    wait $pid
+    local exit_code=$?
+    
+    if [ $exit_code -eq 0 ]; then
+        printf "\r  ${GREEN}${CHECK}${NC} %s\n" "$msg"
+    else
+        printf "\r  ${RED}${CROSS}${NC} %s\n" "$msg"
+        echo -e "\n${RED}Ошибка:${NC}"
+        cat "$LOG_FILE"
+        return $exit_code
+    fi
+}
+
+step_header() {
+    echo -e "\n${BOLD}${CYAN}${ARROW} $1${NC}"
+}
 
 read_input() {
     read -p "$1" "$2" < /dev/tty
@@ -14,10 +63,7 @@ read_input() {
 
 install_docker_compose() {
     if ! command -v docker-compose &> /dev/null; then
-        echo -e "${YELLOW}docker-compose не найден. Устанавливаем...${NC}"
-        sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-        sudo chmod +x /usr/local/bin/docker-compose
-        echo -e "${GREEN}✔ docker-compose установлен.${NC}"
+        run_silent "Установка docker-compose" bash -c 'sudo curl -sL "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose && sudo chmod +x /usr/local/bin/docker-compose'
     fi
 }
 
@@ -27,51 +73,57 @@ run_docker() {
     fi
     
     if [ "$(sudo docker-compose ps -q 2>/dev/null)" ]; then
-        sudo docker-compose down --remove-orphans
+        run_silent "Остановка старых контейнеров" sudo docker-compose down --remove-orphans
     fi
-    sudo docker-compose up -d --build
+    run_silent "Сборка и запуск контейнеров" sudo docker-compose up -d --build
 }
 
 REPO_URL="https://github.com/mwdevru/shopbot-beliyspisok.git"
 PROJECT_DIR="shopbot-beliyspisok"
 NGINX_CONF_FILE="/etc/nginx/sites-available/${PROJECT_DIR}.conf"
 
-echo -e "${GREEN}--- Запуск скрипта установки/обновления VPN Reseller Bot ---${NC}"
+clear
+echo ""
+echo -e "${BOLD}${GREEN}╔════════════════════════════════════════════════════╗${NC}"
+echo -e "${BOLD}${GREEN}║       🤖 VPN Reseller Bot - Установщик             ║${NC}"
+echo -e "${BOLD}${GREEN}╚════════════════════════════════════════════════════╝${NC}"
+echo ""
 
 if [ -f "$NGINX_CONF_FILE" ]; then
-    echo -e "\n${CYAN}Обнаружена существующая конфигурация. Скрипт запущен в режиме обновления.${NC}"
-
+    echo -e "${YELLOW}Обнаружена существующая установка. Режим: ${BOLD}ОБНОВЛЕНИЕ${NC}"
+    
     if [ ! -d "$PROJECT_DIR" ]; then
-        echo -e "${RED}Ошибка: Конфигурация Nginx существует, но папка проекта '${PROJECT_DIR}' не найдена!${NC}"
+        echo -e "${RED}${CROSS} Папка проекта '${PROJECT_DIR}' не найдена!${NC}"
         exit 1
     fi
 
     cd $PROJECT_DIR
 
-    echo -e "\n${CYAN}Шаг 1: Обновление кода из репозитория Git...${NC}"
-    git pull
-    echo -e "${GREEN}✔ Код успешно обновлен.${NC}"
+    step_header "Обновление кода"
+    run_silent "Получение обновлений из Git" git pull
 
-    echo -e "\n${CYAN}Шаг 2: Пересборка и перезапуск Docker-контейнеров...${NC}"
+    step_header "Перезапуск сервисов"
     run_docker
     
-    echo -e "\n\n${GREEN}==============================================${NC}"
-    echo -e "${GREEN}      🎉 Обновление успешно завершено! 🎉      ${NC}"
-    echo -e "${GREEN}==============================================${NC}"
-
+    echo ""
+    echo -e "${BOLD}${GREEN}╔════════════════════════════════════════════════════╗${NC}"
+    echo -e "${BOLD}${GREEN}║         🎉 Обновление завершено!                   ║${NC}"
+    echo -e "${BOLD}${GREEN}╚════════════════════════════════════════════════════╝${NC}"
+    echo ""
     exit 0
 fi
 
-echo -e "\n${YELLOW}Существующая конфигурация не найдена. Запускается первоначальная установка...${NC}"
+echo -e "${YELLOW}Режим: ${BOLD}ПЕРВОНАЧАЛЬНАЯ УСТАНОВКА${NC}"
 
-echo -e "\n${CYAN}Шаг 1: Установка системных зависимостей...${NC}"
+step_header "Установка системных зависимостей"
+
 install_package() {
-    if ! command -v $1 &> /dev/null; then
-        echo -e "${YELLOW}Утилита '$1' не найдена. Устанавливаем...${NC}"
-        sudo apt-get update
-        sudo apt-get install -y $2
+    local cmd=$1
+    local pkg=$2
+    if ! command -v $cmd &> /dev/null; then
+        run_silent "Установка $pkg" bash -c "sudo apt-get update -qq && sudo apt-get install -y -qq $pkg"
     else
-        echo -e "${GREEN}✔ $1 уже установлен.${NC}"
+        echo -e "  ${GREEN}${CHECK}${NC} $cmd уже установлен"
     fi
 }
 
@@ -80,57 +132,49 @@ install_package "docker" "docker.io"
 install_package "nginx" "nginx"
 install_package "curl" "curl"
 install_package "certbot" "certbot python3-certbot-nginx"
-
 install_docker_compose
 
 for service in docker nginx; do
     if ! sudo systemctl is-active --quiet $service; then
-        sudo systemctl start $service
-        sudo systemctl enable $service
+        run_silent "Запуск $service" bash -c "sudo systemctl start $service && sudo systemctl enable $service"
     fi
 done
-echo -e "${GREEN}✔ Все системные зависимости установлены.${NC}"
 
-echo -e "\n${CYAN}Шаг 2: Клонирование репозитория...${NC}"
+step_header "Подготовка проекта"
 if [ ! -d "$PROJECT_DIR" ]; then
-    git clone $REPO_URL
+    run_silent "Клонирование репозитория" git clone --quiet $REPO_URL
+else
+    echo -e "  ${GREEN}${CHECK}${NC} Репозиторий уже существует"
 fi
 cd $PROJECT_DIR
-echo -e "${GREEN}✔ Репозиторий готов.${NC}"
 
-echo -e "\n${CYAN}Шаг 3: Настройка домена и получение SSL-сертификатов...${NC}"
-
-read_input "Введите ваш домен (например, my-vpn-shop.com): " USER_INPUT_DOMAIN
+step_header "Настройка домена"
+echo ""
+read_input "  Введите домен (например: my-vpn-shop.com): " USER_INPUT_DOMAIN
 
 if [ -z "$USER_INPUT_DOMAIN" ]; then
-    echo -e "${RED}Ошибка: Домен не может быть пустым.${NC}"
+    echo -e "  ${RED}${CROSS} Домен не может быть пустым${NC}"
     exit 1
 fi
 
 DOMAIN=$(echo "$USER_INPUT_DOMAIN" | sed -e 's%^https\?://%%' -e 's%/.*$%%')
-
-read_input "Введите ваш email (для SSL-сертификатов Let's Encrypt): " EMAIL
-
-echo -e "${GREEN}✔ Домен: ${DOMAIN}${NC}"
+read_input "  Введите email (для SSL): " EMAIL
+echo -e "  ${GREEN}${CHECK}${NC} Домен: ${BOLD}${DOMAIN}${NC}"
 
 if command -v ufw &> /dev/null && sudo ufw status | grep -q 'Status: active'; then
-    sudo ufw allow 80/tcp
-    sudo ufw allow 443/tcp
-    sudo ufw allow 1488/tcp
+    run_silent "Настройка firewall" bash -c "sudo ufw allow 80/tcp && sudo ufw allow 443/tcp && sudo ufw allow 1488/tcp"
 fi
 
-echo -e "\n${CYAN}Шаг 4: Настройка Nginx...${NC}"
+step_header "Настройка Nginx"
 
 NGINX_ENABLED_FILE="/etc/nginx/sites-enabled/${PROJECT_DIR}.conf"
-
-sudo rm -rf /etc/nginx/sites-enabled/default
+sudo rm -rf /etc/nginx/sites-enabled/default 2>/dev/null || true
 
 sudo bash -c "cat > $NGINX_CONF_FILE" <<EOF
 server {
     listen 80;
     listen [::]:80;
     server_name ${DOMAIN};
-
     location / {
         return 200 'OK';
         add_header Content-Type text/plain;
@@ -139,24 +183,20 @@ server {
 EOF
 
 if [ ! -f "$NGINX_ENABLED_FILE" ]; then
-    sudo ln -s $NGINX_CONF_FILE $NGINX_ENABLED_FILE
+    sudo ln -s $NGINX_CONF_FILE $NGINX_ENABLED_FILE 2>/dev/null || true
 fi
 
-sudo nginx -t && sudo systemctl reload nginx
+run_silent "Проверка конфигурации Nginx" bash -c "sudo nginx -t && sudo systemctl reload nginx"
 
+step_header "Получение SSL-сертификата"
 if [ -d "/etc/letsencrypt/live/$DOMAIN" ]; then
-    echo -e "${GREEN}✔ SSL-сертификаты уже существуют.${NC}"
+    echo -e "  ${GREEN}${CHECK}${NC} SSL-сертификат уже существует"
 else
-    sudo certbot --nginx -d $DOMAIN --email $EMAIL --agree-tos --non-interactive --redirect
-    if [ $? -ne 0 ]; then
-        echo -e "${YELLOW}⚠ Автоматическая установка не удалась. Получаем сертификат вручную...${NC}"
-        sudo certbot certonly --nginx -d $DOMAIN --email $EMAIL --agree-tos --non-interactive
-    fi
-    echo -e "${GREEN}✔ SSL-сертификаты получены.${NC}"
+    run_silent "Получение сертификата Let's Encrypt" sudo certbot --nginx -d $DOMAIN --email $EMAIL --agree-tos --non-interactive --redirect
 fi
 
 if [ ! -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
-    echo -e "${RED}Ошибка: SSL-сертификаты не найдены!${NC}"
+    echo -e "  ${RED}${CROSS} SSL-сертификат не найден!${NC}"
     exit 1
 fi
 
@@ -188,21 +228,23 @@ server {
 }
 EOF
 
-sudo nginx -t && sudo systemctl reload nginx
-echo -e "${GREEN}✔ Nginx настроен с SSL.${NC}"
+run_silent "Применение SSL-конфигурации" bash -c "sudo nginx -t && sudo systemctl reload nginx"
 
-echo -e "\n${CYAN}Шаг 5: Сборка и запуск Docker-контейнера...${NC}"
+step_header "Запуск приложения"
 run_docker
 
-echo -e "\n\n${GREEN}=====================================================${NC}"
-echo -e "${GREEN}      🎉 Установка успешно завершена! 🎉      ${NC}"
-echo -e "${GREEN}=====================================================${NC}"
-echo -e "\nВеб-панель: ${YELLOW}https://${DOMAIN}/login${NC}"
-echo -e "\nЛогин: ${CYAN}admin${NC}"
-echo -e "Пароль: ${CYAN}admin${NC}"
-echo -e "\n${RED}ВАЖНО:${NC}"
-echo -e "1. Смените пароль в настройках панели"
-echo -e "2. Получите API ключ в боте https://t.me/mwvpnbot"
-echo -e "3. Введите API ключ, токен бота и Telegram ID в настройках"
-echo -e "4. Создайте тарифы и запустите бота"
-echo -e "\n"
+echo ""
+echo -e "${BOLD}${GREEN}╔════════════════════════════════════════════════════╗${NC}"
+echo -e "${BOLD}${GREEN}║         🎉 Установка завершена!                    ║${NC}"
+echo -e "${BOLD}${GREEN}╚════════════════════════════════════════════════════╝${NC}"
+echo ""
+echo -e "  ${CYAN}Веб-панель:${NC}  https://${DOMAIN}/login"
+echo -e "  ${CYAN}Логин:${NC}       admin"
+echo -e "  ${CYAN}Пароль:${NC}      admin"
+echo ""
+echo -e "${YELLOW}Следующие шаги:${NC}"
+echo -e "  1. Смените пароль в настройках панели"
+echo -e "  2. Получите API ключ: ${CYAN}https://t.me/mwvpnbot${NC}"
+echo -e "  3. Введите API ключ, токен бота и Telegram ID"
+echo -e "  4. Создайте тарифы и запустите бота"
+echo ""

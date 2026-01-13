@@ -827,46 +827,38 @@ def create_webhook_app(bot_controller_instance):
     @flask_app.route('/api/check-update')
     @login_required
     def check_update_api():
-        def parse_version(v):
-            try:
-                parts = v.replace('v', '').replace('-', '.').split('.')
-                return tuple(int(p) for p in parts[:3] if p.isdigit())
-            except:
-                return (0, 0, 0)
-        
         try:
             import urllib.request
             import urllib.error
-            url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+            
+            local_commit = None
+            try:
+                result = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd='/app', capture_output=True, text=True, timeout=5)
+                if result.returncode == 0:
+                    local_commit = result.stdout.strip()[:7]
+            except:
+                pass
+            
+            url = f"https://api.github.com/repos/{GITHUB_REPO}/commits/main"
             req = urllib.request.Request(url, headers={'User-Agent': 'ShopBot', 'Accept': 'application/vnd.github.v3+json'})
             with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode())
-                latest_version = data.get('tag_name', '').lstrip('v')
+                remote_commit = data.get('sha', '')[:7]
+                commit_message = data.get('commit', {}).get('message', '').split('\n')[0]
+                commit_date = data.get('commit', {}).get('committer', {}).get('date', '')
                 
-                if not latest_version:
-                    return jsonify({'current': CURRENT_VERSION, 'latest': CURRENT_VERSION, 'has_update': False, 'message': 'Не удалось получить версию с GitHub'})
-                
-                current_parsed = parse_version(CURRENT_VERSION)
-                latest_parsed = parse_version(latest_version)
-                has_update = latest_parsed > current_parsed
-                
-                logger.info(f"Version check: current={CURRENT_VERSION} ({current_parsed}), latest={latest_version} ({latest_parsed}), has_update={has_update}")
+                has_update = local_commit != remote_commit if local_commit else False
                 
                 return jsonify({
                     'current': CURRENT_VERSION,
-                    'latest': latest_version,
+                    'local_commit': local_commit or 'unknown',
+                    'remote_commit': remote_commit,
                     'has_update': has_update,
-                    'changelog': data.get('body', ''),
-                    'url': data.get('html_url', f'https://github.com/{GITHUB_REPO}/releases'),
-                    'debug': {
-                        'current_parsed': list(current_parsed),
-                        'latest_parsed': list(latest_parsed)
-                    }
+                    'changelog': commit_message,
+                    'commit_date': commit_date,
+                    'url': f'https://github.com/{GITHUB_REPO}/commits/main'
                 })
         except urllib.error.HTTPError as e:
-            if e.code == 404:
-                return jsonify({'current': CURRENT_VERSION, 'latest': CURRENT_VERSION, 'has_update': False, 'message': 'Релизы не найдены на GitHub'})
-            logger.error(f"Check update HTTP error: {e}")
             return jsonify({'error': str(e), 'current': CURRENT_VERSION, 'has_update': False})
         except Exception as e:
             logger.error(f"Check update error: {e}")
