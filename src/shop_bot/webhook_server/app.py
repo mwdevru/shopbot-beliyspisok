@@ -832,7 +832,7 @@ def create_webhook_app(bot_controller_instance):
             import urllib.error
             
             local_commit = None
-            for git_path in ['/app', '.', os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]:
+            for git_path in ['/app/project', '/app', '.']:
                 try:
                     result = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=git_path, capture_output=True, text=True, timeout=5)
                     if result.returncode == 0:
@@ -863,7 +863,6 @@ def create_webhook_app(bot_controller_instance):
         except urllib.error.HTTPError as e:
             return jsonify({'error': str(e), 'current': CURRENT_VERSION, 'has_update': False})
         except Exception as e:
-            logger.error(f"Check update error: {e}")
             return jsonify({'error': str(e), 'current': CURRENT_VERSION, 'has_update': False})
 
     @flask_app.route('/api/changelog')
