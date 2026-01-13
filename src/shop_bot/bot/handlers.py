@@ -567,7 +567,7 @@ def get_user_router() -> Router:
 
         try:
             result = await mwshark_api.create_subscription_for_user(
-                api_key=api_key, user_id=user_id, days=trial_days, name=f"Trial for {user_id}"
+                api_key=api_key, user_id=user_id, days=trial_days
             )
 
             if not result.get('success'):
@@ -1221,7 +1221,7 @@ async def process_successful_payment(bot: Bot, metadata: dict):
 
         if action == "new":
             result = await mwshark_api.create_subscription_for_user(
-                api_key=api_key, user_id=user_id, days=days, name=f"Subscription for {user_id}"
+                api_key=api_key, user_id=user_id, days=days
             )
         elif action == "extend":
             key_data = get_key_by_id(key_id)

@@ -484,7 +484,7 @@ def create_webhook_app(bot_controller_instance):
             loop = current_app.config.get('EVENT_LOOP')
             if loop and loop.is_running():
                 future = asyncio.run_coroutine_threadsafe(
-                    mwshark_api.create_subscription_for_user(api_key, user_id, days, f"Admin grant for {user_id}"), loop
+                    mwshark_api.create_subscription_for_user(api_key, user_id, days), loop
                 )
                 result = future.result(timeout=10)
                 

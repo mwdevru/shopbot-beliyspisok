@@ -59,10 +59,8 @@ class MWSharkAPI:
             params["extra_service"] = "true"
         return await self._request("GET", "/calculate", params)
 
-    async def create_subscription(self, days: int, devices: int = 1, name: str = None, extra_service: bool = False) -> Dict[str, Any]:
+    async def create_subscription(self, days: int, devices: int = 1, extra_service: bool = False) -> Dict[str, Any]:
         data = {"days": days, "devices": devices}
-        if name:
-            data["name"] = name
         if extra_service:
             data["extra_service"] = True
         return await self._request("POST", "/subscription/create", data)
@@ -110,11 +108,9 @@ def get_api(api_key: str = None) -> Optional[MWSharkAPI]:
     return _api_instance
 
 
-async def create_subscription_for_user(api_key: str, user_id: int, days: int, name: str = None, devices: int = 1, extra_service: bool = False) -> Dict[str, Any]:
+async def create_subscription_for_user(api_key: str, user_id: int, days: int, devices: int = 1, extra_service: bool = False) -> Dict[str, Any]:
     api = MWSharkAPI(api_key)
     data = {"days": days, "devices": devices}
-    if name:
-        data["name"] = name
     if extra_service:
         data["extra_service"] = True
     return await api._request("POST", "/subscription/create", data)
