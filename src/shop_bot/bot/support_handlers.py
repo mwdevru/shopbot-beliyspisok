@@ -475,19 +475,23 @@ def get_support_router() -> Router:
         user_id = int(user_id_str)
 
         current_status = get_ticket_status(user_id)
-        current_priority = get_ticket_priority(user_id)
+
+        if current_status in [TicketStatus.CLOSED.value, TicketStatus.RESOLVED.value]:
+            if action in ["wait", "urgent"]:
+                await callback.answer("Тикет уже завершён", show_alert=True)
+                return
 
         if action == "resolve":
             if current_status == TicketStatus.RESOLVED.value:
-                await callback.answer("Уже отмечен как решённый", show_alert=False)
+                await callback.answer("Уже решён", show_alert=False)
                 return
             set_ticket_status(user_id, TicketStatus.RESOLVED)
-            await callback.answer("✅ Тикет отмечен как решённый")
+            await callback.answer("✅ Решено")
             try:
                 await bot.send_message(
                     chat_id=user_id,
-                    text="✅ <b>Ваш вопрос отмечен как решённый.</b>\n\n"
-                         "Если проблема не решена, просто напишите нам снова.",
+                    text="✅ <b>Ваш вопрос решён.</b>\n\n"
+                         "Если проблема не решена, просто напишите нам.",
                     parse_mode=ParseMode.HTML
                 )
             except:
@@ -498,12 +502,12 @@ def get_support_router() -> Router:
                 await callback.answer("Уже закрыт", show_alert=False)
                 return
             set_ticket_status(user_id, TicketStatus.CLOSED)
-            await callback.answer("🔒 Тикет закрыт")
+            await callback.answer("🔒 Закрыт")
             try:
                 await bot.send_message(
                     chat_id=user_id,
-                    text="🔒 <b>Ваш тикет был закрыт.</b>\n\n"
-                         "Оцените качество поддержки:",
+                    text="🔒 <b>Тикет закрыт.</b>\n\n"
+                         "Оцените поддержку:",
                     parse_mode=ParseMode.HTML,
                     reply_markup=create_rating_keyboard()
                 )
@@ -515,29 +519,34 @@ def get_support_router() -> Router:
                     await bot.close_forum_topic(chat_id=SUPPORT_GROUP_ID, message_thread_id=thread_id)
                 except:
                     pass
+            try:
+                await callback.message.edit_reply_markup(reply_markup=None)
+            except:
+                pass
+            return
 
         elif action == "wait":
             if current_status == TicketStatus.WAITING_USER.value:
-                await callback.answer("Уже ожидает ответа", show_alert=False)
+                await callback.answer("Уже ожидает", show_alert=False)
                 return
             set_ticket_status(user_id, TicketStatus.WAITING_USER)
-            await callback.answer("⏳ Ожидание ответа пользователя")
+            await callback.answer("⏳ Ожидание")
             try:
                 await bot.send_message(
                     chat_id=user_id,
-                    text="⏳ <b>Ожидаем вашего ответа.</b>\n\n"
-                         "Пожалуйста, предоставьте дополнительную информацию.",
+                    text="⏳ <b>Ожидаем ваш ответ.</b>",
                     parse_mode=ParseMode.HTML
                 )
             except:
                 pass
 
         elif action == "urgent":
+            current_priority = get_ticket_priority(user_id)
             if current_priority == TicketPriority.URGENT.value:
                 await callback.answer("Уже срочный", show_alert=False)
                 return
             set_ticket_priority(user_id, TicketPriority.URGENT)
-            await callback.answer("🔴 Приоритет: СРОЧНО")
+            await callback.answer("🔴 Срочно")
 
         try:
             await callback.message.edit_reply_markup(
