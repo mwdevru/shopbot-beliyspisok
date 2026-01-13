@@ -215,8 +215,8 @@ def get_support_router() -> Router:
 
     @support_router.message(CommandStart())
     async def handle_start(message: types.Message, bot: Bot, state: FSMContext):
+        await state.clear()
         user_id = message.from_user.id
-        username = message.from_user.username or message.from_user.full_name
 
         thread_id = database.get_support_thread_id(user_id)
 
@@ -228,9 +228,10 @@ def get_support_router() -> Router:
 
         if thread_id:
             await message.answer(
-                "📬 У вас уже есть открытый тикет.\n\n"
-                "Просто напишите ваше сообщение, и оно будет отправлено в поддержку.\n\n"
-                "Используйте /newticket чтобы создать новый тикет."
+                "📬 <b>У вас уже есть открытый тикет.</b>\n\n"
+                "Просто напишите сообщение — оно будет отправлено в поддержку.\n\n"
+                "Для нового тикета: /newticket",
+                parse_mode=ParseMode.HTML
             )
             return
 
@@ -244,6 +245,7 @@ def get_support_router() -> Router:
 
     @support_router.message(Command("newticket"))
     async def new_ticket_handler(message: types.Message, bot: Bot, state: FSMContext):
+        await state.clear()
         user_id = message.from_user.id
 
         old_thread_id = database.get_support_thread_id(user_id)
@@ -267,13 +269,18 @@ def get_support_router() -> Router:
         )
         await state.set_state(SupportStates.waiting_for_category)
 
-    @support_router.callback_query(SupportStates.waiting_for_category, F.data.startswith("support_cat_"))
+    @support_router.callback_query(F.data.startswith("support_cat_"))
     async def category_selected(callback: types.CallbackQuery, bot: Bot, state: FSMContext):
+        current_state = await state.get_state()
+        if current_state != SupportStates.waiting_for_category.state:
+            await callback.answer("Выберите категорию заново", show_alert=True)
+            return
+
         category = callback.data.replace("support_cat_", "")
         user_id = callback.from_user.id
         username = callback.from_user.username or callback.from_user.full_name
 
-        await callback.answer()
+        await callback.answer("Создаю тикет...")
 
         if not SUPPORT_GROUP_ID:
             logger.error("Support bot: SUPPORT_GROUP_ID is not configured!")
@@ -281,59 +288,56 @@ def get_support_router() -> Router:
             await state.clear()
             return
 
+        cat_name = SUPPORT_CATEGORIES.get(category, "Другое")
         thread_id = None
+        
         try:
-            cat_name = SUPPORT_CATEGORIES.get(category, "Другое")
             thread_name = f"[{cat_name.split()[0]}] @{username} ({user_id})"
             if len(thread_name) > 128:
                 thread_name = thread_name[:125] + "..."
 
             new_thread = await bot.create_forum_topic(chat_id=SUPPORT_GROUP_ID, name=thread_name)
             thread_id = new_thread.message_thread_id
+            logger.info(f"Created forum topic {thread_id} for user {user_id}")
 
+        except Exception as e:
+            logger.error(f"Failed to create forum topic for user {user_id}: {e}")
+            await callback.message.edit_text(
+                "❌ Не удалось создать тикет. Попробуйте позже."
+            )
+            await state.clear()
+            return
+
+        try:
             database.add_support_thread(user_id, thread_id, category)
             set_ticket_status(user_id, TicketStatus.OPEN)
-
             if category in ["payment", "refund"]:
                 set_ticket_priority(user_id, TicketPriority.HIGH)
             else:
                 set_ticket_priority(user_id, TicketPriority.NORMAL)
-
-            try:
-                summary_text = await get_user_summary(user_id, username, category)
-                await bot.send_message(
-                    chat_id=SUPPORT_GROUP_ID,
-                    message_thread_id=thread_id,
-                    text=summary_text,
-                    parse_mode=ParseMode.HTML,
-                    reply_markup=create_ticket_actions_keyboard(user_id)
-                )
-            except Exception as summary_err:
-                logger.warning(f"Failed to send summary to thread {thread_id}: {summary_err}")
-
-            logger.info(f"Created support thread {thread_id} for user {user_id}, category: {category}")
-
-            await callback.message.edit_text(
-                f"✅ <b>Тикет создан!</b>\n\n"
-                f"📂 Категория: {cat_name}\n\n"
-                f"Опишите вашу проблему подробно. Прикрепите скриншоты, если это поможет.",
-                parse_mode=ParseMode.HTML
-            )
-            await state.clear()
-
         except Exception as e:
-            logger.error(f"Failed to create support thread for user {user_id}: {e}", exc_info=True)
-            if thread_id:
-                await callback.message.edit_text(
-                    f"✅ <b>Тикет создан!</b>\n\n"
-                    f"Опишите вашу проблему подробно.",
-                    parse_mode=ParseMode.HTML
-                )
-            else:
-                await callback.message.edit_text(
-                    "❌ Не удалось создать тикет. Попробуйте позже или напишите напрямую администратору."
-                )
-            await state.clear()
+            logger.error(f"Failed to save thread to DB: {e}")
+
+        try:
+            summary_text = await get_user_summary(user_id, username, category)
+            await bot.send_message(
+                chat_id=SUPPORT_GROUP_ID,
+                message_thread_id=thread_id,
+                text=summary_text,
+                parse_mode=ParseMode.HTML,
+                reply_markup=create_ticket_actions_keyboard(user_id)
+            )
+        except Exception as e:
+            logger.warning(f"Failed to send summary: {e}")
+
+        await state.clear()
+
+        await callback.message.edit_text(
+            f"✅ <b>Тикет #{thread_id} создан!</b>\n\n"
+            f"📂 Категория: {cat_name}\n\n"
+            f"Теперь просто пишите сообщения — они будут отправлены в поддержку.",
+            parse_mode=ParseMode.HTML
+        )
 
     @support_router.callback_query(F.data == "support_cancel")
     async def cancel_support(callback: types.CallbackQuery, state: FSMContext):
@@ -341,22 +345,31 @@ def get_support_router() -> Router:
         await callback.message.edit_text("❌ Создание тикета отменено.")
         await state.clear()
 
-    @support_router.message(F.chat.type == "private", ~StateFilter(SupportStates.waiting_for_category))
+    @support_router.message(F.chat.type == "private", ~Command("start"), ~Command("newticket"))
     async def from_user_to_admin(message: types.Message, bot: Bot, state: FSMContext):
+        current_state = await state.get_state()
+        if current_state == SupportStates.waiting_for_category.state:
+            await message.answer(
+                "⬆️ Сначала выберите категорию обращения выше.",
+                parse_mode=ParseMode.HTML
+            )
+            return
+
         user_id = message.from_user.id
         thread_id = database.get_support_thread_id(user_id)
 
         if not thread_id or not SUPPORT_GROUP_ID:
             await message.answer(
-                "📝 Чтобы связаться с поддержкой, нажмите /start и выберите категорию обращения."
+                "📝 Чтобы связаться с поддержкой, нажмите /start"
             )
             return
 
         status = get_ticket_status(user_id)
         if status == TicketStatus.CLOSED.value:
+            database.delete_support_thread(user_id)
             await message.answer(
-                "🔒 Ваш предыдущий тикет был закрыт.\n"
-                "Используйте /newticket для создания нового обращения."
+                "🔒 Ваш тикет был закрыт.\n"
+                "Нажмите /start для нового обращения."
             )
             return
 
@@ -374,14 +387,15 @@ def get_support_router() -> Router:
             database.increment_ticket_messages(user_id)
 
         except TelegramBadRequest as e:
-            if "thread not found" in str(e).lower():
+            if "thread not found" in str(e).lower() or "message thread not found" in str(e).lower():
                 database.delete_support_thread(user_id)
                 await message.answer(
-                    "⚠️ Ваш тикет был закрыт.\n"
-                    "Используйте /start для создания нового обращения."
+                    "⚠️ Тикет был удалён.\n"
+                    "Нажмите /start для нового обращения."
                 )
             else:
                 logger.error(f"Failed to forward message from user {user_id}: {e}")
+                await message.answer("❌ Ошибка отправки. Попробуйте позже.")
         except Exception as e:
             logger.error(f"Failed to forward message from user {user_id}: {e}")
 
