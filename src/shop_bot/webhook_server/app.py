@@ -933,9 +933,15 @@ def create_webhook_app(bot_controller_instance):
             )
             
             if result.returncode == 0:
+                import threading
+                def restart_app():
+                    import time
+                    time.sleep(1)
+                    os._exit(0)
+                threading.Thread(target=restart_app, daemon=True).start()
                 return jsonify({
                     'success': True,
-                    'message': 'Обновление загружено. Перезапустите контейнер.',
+                    'message': 'Обновление загружено. Перезапуск...',
                     'output': result.stdout
                 })
             else:
