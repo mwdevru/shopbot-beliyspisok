@@ -362,10 +362,13 @@ src/shop_bot/
 ---
 
 <p align="center">
-  <sub>
-    Сделано командой <b>MW LLC</b><br>
-    Форк <a href="https://github.com/evansvl/vless-shopbot">evansvl/vless-shopbot</a>
-  </sub>
+  <img src="https://img.shields.io/badge/Made%20with-❤️-red?style=flat-square" alt="Made with love">
+  <img src="https://img.shields.io/badge/by-MW%20LLC-6366f1?style=flat-square" alt="MW LLC">
+</p>
+
+<p align="center">
+  <b>MW VPN Reseller Bot</b><br>
+  <sub>Форк <a href="https://github.com/evansvl/vless-shopbot">evansvl/vless-shopbot</a></sub>
 </p>
 
 <p align="center">
