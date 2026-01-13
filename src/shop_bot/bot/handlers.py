@@ -555,12 +555,15 @@ def get_user_router() -> Router:
 
         api_key = get_setting("mwshark_api_key")
         if not api_key:
-            await callback.message.edit_text("❌ API ключ не настроен.")
+            await callback.message.edit_text(
+                "❌ API ключ не настроен.",
+                reply_markup=keyboards.create_back_to_menu_keyboard()
+            )
             return
 
         await callback.answer()
         trial_days = int(get_setting("trial_duration_days") or "3")
-        await callback.message.edit_text(f"Создаю ключ на {trial_days} дня...")
+        await callback.message.edit_text("⏳ *Загружаю...*", parse_mode="Markdown")
 
         try:
             result = await mwshark_api.create_subscription_for_user(
@@ -568,7 +571,10 @@ def get_user_router() -> Router:
             )
 
             if not result.get('success'):
-                await callback.message.edit_text(f"❌ Ошибка: {result.get('error', 'Неизвестная ошибка')}")
+                await callback.message.edit_text(
+                    f"❌ Ошибка: {result.get('error', 'Неизвестная ошибка')}",
+                    reply_markup=keyboards.create_back_to_menu_keyboard()
+                )
                 return
 
             set_trial_used(user_id)
@@ -587,7 +593,10 @@ def get_user_router() -> Router:
 
         except Exception as e:
             logger.error(f"Trial key error for {user_id}: {e}", exc_info=True)
-            await callback.message.edit_text("❌ Ошибка при создании ключа.")
+            await callback.message.edit_text(
+                "❌ Ошибка при создании ключа.",
+                reply_markup=keyboards.create_back_to_menu_keyboard()
+            )
 
     @user_router.callback_query(F.data.startswith("show_key_"))
     @registration_required
@@ -704,7 +713,7 @@ def get_user_router() -> Router:
         await callback.answer()
         plans = get_all_plans()
         if not plans:
-            await callback.message.edit_text("❌ Нет доступных тарифов.")
+            await callback.message.edit_text("❌ Нет доступных тарифов.", reply_markup=keyboards.create_back_to_menu_keyboard())
             return
         await callback.message.edit_text("Выберите тариф:", reply_markup=keyboards.create_plans_keyboard(plans, action="new"))
 
@@ -725,7 +734,7 @@ def get_user_router() -> Router:
 
         plans = get_all_plans()
         if not plans:
-            await callback.message.edit_text("❌ Нет доступных тарифов.")
+            await callback.message.edit_text("❌ Нет доступных тарифов.", reply_markup=keyboards.create_back_to_menu_keyboard())
             return
 
         await callback.message.edit_text(
@@ -998,14 +1007,6 @@ def get_user_router() -> Router:
             await callback.message.edit_text("❌ Ошибка Platega.")
             await state.clear()
 
-    @user_router.message(F.text)
-    @registration_required
-    async def unknown_message_handler(message: types.Message):
-        if message.text.startswith('/'):
-            await message.answer("Команда не найдена. Попробуйте /start.")
-        else:
-            await message.answer("Используйте кнопки меню.")
-
     return user_router
 
 
@@ -1209,7 +1210,7 @@ async def process_successful_payment(bot: Bot, metadata: dict):
         logger.error(f"Metadata parse error: {e}. Metadata: {metadata}")
         return
 
-    processing_message = await bot.send_message(chat_id=user_id, text="✅ Оплата получена! Обрабатываю...")
+    processing_message = await bot.send_message(chat_id=user_id, text="⏳ *Загружаю...*", parse_mode="Markdown")
 
     try:
         api_key = get_setting("mwshark_api_key")

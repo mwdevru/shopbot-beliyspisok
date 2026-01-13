@@ -8,7 +8,7 @@
 <div class="card-title">Текущая версия</div>
 <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
 <div style="font-size:2rem;font-weight:700;color:var(--primary)">v{{ current_version }}</div>
-<div id="versionStatus" style="font-size:.875rem;color:var(--text-muted)">Проверка...</div>
+<div id="versionStatus" style="font-size:.875rem;color:var(--text-muted)">Нажмите "Проверить"</div>
 </div>
 <div style="display:flex;gap:8px;flex-wrap:wrap">
 <button onclick="checkUpdates()" class="btn btn-ghost btn-sm" id="checkBtn">🔄 Проверить</button>
@@ -94,7 +94,6 @@ document.getElementById('changelogContent').textContent='Не удалось з�
 }
 }).catch(()=>{document.getElementById('changelogContent').textContent='Ошибка загрузки';});
 }
-checkUpdates();
 loadChangelog();
 </script>
 {% endblock %}

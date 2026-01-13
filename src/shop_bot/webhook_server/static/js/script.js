@@ -56,7 +56,6 @@ row.addEventListener('click',function(e){
 if(e.target.tagName!=='A'&&e.target.tagName!=='BUTTON'){window.location=this.dataset.href;}
 });
 });
-checkForUpdates();
 });
 function checkForUpdates(){
 fetch('/api/check-update').then(r=>r.json()).then(data=>{
