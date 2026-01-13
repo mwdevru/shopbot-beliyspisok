@@ -81,3 +81,13 @@ banner.innerHTML='<span>❌ '+data.message+'</span><button onclick="hideUpdate()
 banner.innerHTML='<span>❌ Ошибка: '+e+'</span>';
 });
 }
+
+const guideOverlay=document.getElementById('guideOverlay');
+const openGuide=document.getElementById('openGuide');
+const guideClose=document.getElementById('guideClose');
+if(guideOverlay&&openGuide){
+const hideGuide=()=>guideOverlay.classList.remove('show');
+openGuide.addEventListener('click',()=>guideOverlay.classList.add('show'));
+guideOverlay.addEventListener('click',e=>{if(e.target===guideOverlay)hideGuide();});
+if(guideClose){guideClose.addEventListener('click',hideGuide);}
+}

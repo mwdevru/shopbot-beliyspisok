@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Мастер первой настройки</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="setup-body">
+<div class="setup-wrapper">
+  <div class="setup-card">
+    <div class="setup-header">
+      <div>
+        <p class="setup-kicker">Мастер первой установки</p>
+        <h1>Соберём панель за пару шагов</h1>
+        <p class="setup-subtext">
+          Мы настроим доступ, подключим ботов и оставим контакты для пользователей. После сохранения можно запускать ботов.
+        </p>
+      </div>
+      <div class="setup-actions-top">
+        <div class="setup-pill">v{{ app_version }}</div>
+        <form action="{{ url_for('logout_page') }}" method="post">
+          <button type="submit" class="btn btn-ghost btn-sm">Выйти</button>
+        </form>
+      </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+      <div class="flash flash-{{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
+    {% endwith %}
+
+    {% if setup_state.missing_labels or setup_state.default_creds %}
+    <div class="setup-alert">
+      <div>
+        <p class="setup-alert-title">Что нужно заполнить</p>
+        <div class="setup-alert-list">
+          {% if setup_state.default_creds %}
+            <span>Смените стандартные admin/admin</span>
+          {% endif %}
+          {% for item in setup_state.missing_labels %}
+            <span>{{ item }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="setup-alert-pill">Помощь</div>
+    </div>
+    {% endif %}
+
+    <div class="setup-stepper">
+      <div class="setup-marker active" data-step-marker="0">
+        <span>1</span>
+        <p>Доступ</p>
+      </div>
+      <div class="setup-marker" data-step-marker="1">
+        <span>2</span>
+        <p>Боты</p>
+      </div>
+      <div class="setup-marker" data-step-marker="2">
+        <span>3</span>
+        <p>Контакты</p>
+      </div>
+    </div>
+
+    <form method="post" id="setupForm">
+      <div class="setup-step" data-step="0">
+        <h3>Шаг 1. Доступ в панель</h3>
+        <p class="setup-subtext">Придумайте логин и пароль, чтобы закрыть доступ от посторонних.</p>
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label">Логин панели</label>
+            <input type="text" name="panel_login" class="form-input" value="{{ settings.panel_login or '' }}" data-required="true">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Новый пароль</label>
+            <input type="password" name="panel_password" class="form-input" placeholder="Оставьте пустым, чтобы не менять" >
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Описание проекта (необязательно)</label>
+          <textarea name="about_text" class="form-input" rows="3">{{ settings.about_text or "" }}</textarea>
+        </div>
+      </div>
+
+      <div class="setup-step" data-step="1">
+        <h3>Шаг 2. Подключения</h3>
+        <p class="setup-subtext">Укажите ключи, чтобы бот мог выдавать подписки и работать с API.</p>
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label">MW API ключ</label>
+            <input type="password" name="mwshark_api_key" class="form-input" value="{{ settings.mwshark_api_key or '' }}" data-required="true">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Домен для вебхуков (опционально)</label>
+            <input type="text" name="domain" class="form-input" value="{{ settings.domain or '' }}" placeholder="my-shop.com">
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label">Token основного бота</label>
+            <input type="password" name="telegram_bot_token" class="form-input" value="{{ settings.telegram_bot_token or '' }}" data-required="true">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Username бота (без @)</label>
+            <input type="text" name="telegram_bot_username" class="form-input" value="{{ settings.telegram_bot_username or '' }}" data-required="true">
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label">Admin Telegram ID</label>
+            <input type="text" name="admin_telegram_id" class="form-input" value="{{ settings.admin_telegram_id or '' }}" data-required="true">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Email для чеков (YooKassa)</label>
+            <input type="text" name="receipt_email" class="form-input" value="{{ settings.receipt_email or '' }}" placeholder="billing@domain.com">
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label">Token support-бота (опция)</label>
+            <input type="password" name="support_bot_token" class="form-input" value="{{ settings.support_bot_token or '' }}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">ID группы поддержки (опция)</label>
+            <input type="text" name="support_group_id" class="form-input" value="{{ settings.support_group_id or '' }}">
+          </div>
+        </div>
+      </div>
+
+      <div class="setup-step" data-step="2">
+        <h3>Шаг 3. Контакты и ссылки</h3>
+        <p class="setup-subtext">Добавьте то, что увидит пользователь в боте.</p>
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label">Ссылка на поддержку</label>
+            <input type="text" name="support_user" class="form-input" value="{{ settings.support_user or '' }}" placeholder="@support">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Ссылка на канал/новости</label>
+            <input type="text" name="channel_url" class="form-input" value="{{ settings.channel_url or '' }}" placeholder="https://t.me/yourchannel">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Текст поддержки</label>
+          <textarea name="support_text" class="form-input" rows="3" placeholder="Например: мы отвечаем в течение 5 минут">{{ settings.support_text or "" }}</textarea>
+        </div>
+      </div>
+
+      <div class="setup-nav">
+        <button type="button" class="btn btn-ghost btn-sm" data-prev>Назад</button>
+        <div class="setup-nav-actions">
+          <button type="button" class="btn btn-ghost btn-sm" data-next>Дальше</button>
+          <button type="submit" class="btn btn-primary">Сохранить и завершить</button>
+        </div>
+      </div>
+    </form>
+    <p class="setup-footnote">После сохранения вы сможете настроить тарифы и оплату на страницах панели.</p>
+  </div>
+</div>
+
+<script>
+(function(){
+  const steps = Array.from(document.querySelectorAll('.setup-step'));
+  const markers = Array.from(document.querySelectorAll('.setup-marker'));
+  const nextBtn = document.querySelector('[data-next]');
+  const prevBtn = document.querySelector('[data-prev]');
+  const submitBtn = document.querySelector('#setupForm button[type=\"submit\"]');
+  let current = 0;
+
+  function showStep(idx){
+    steps.forEach((step,i)=>step.classList.toggle('active', i===idx));
+    markers.forEach((marker,i)=>{
+      marker.classList.toggle('active', i<=idx);
+    });
+    if(prevBtn) prevBtn.style.visibility = idx === 0 ? 'hidden' : 'visible';
+    if(nextBtn) nextBtn.style.display = idx === steps.length-1 ? 'none' : 'inline-flex';
+    if(submitBtn) submitBtn.style.display = idx === steps.length-1 ? 'inline-flex' : 'none';
+  }
+
+  function validateStep(idx){
+    let ok = true;
+    const inputs = steps[idx].querySelectorAll('[data-required="true"]');
+    inputs.forEach(input=>{
+      const valid = Boolean(input.value && input.value.trim().length);
+      input.classList.toggle('input-error', !valid);
+      if(!valid){ ok = false; }
+    });
+    return ok;
+  }
+
+  if(nextBtn){
+    nextBtn.addEventListener('click', ()=>{
+      if(current < steps.length-1 && validateStep(current)){
+        current += 1;
+        showStep(current);
+      }
+    });
+  }
+  if(prevBtn){
+    prevBtn.addEventListener('click', ()=>{
+      if(current > 0){
+        current -= 1;
+        showStep(current);
+      }
+    });
+  }
+  steps.forEach(step=>{
+    step.querySelectorAll('input, textarea').forEach(input=>{
+      input.addEventListener('input', ()=> input.classList.remove('input-error'));
+    });
+  });
+
+  showStep(0);
+})();
+</script>
+</body>
+</html>
