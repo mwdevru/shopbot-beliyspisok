@@ -755,6 +755,15 @@ def create_webhook_app(bot_controller_instance):
     @flask_app.route('/platega-webhook', methods=['POST'])
     def platega_webhook_handler():
         try:
+            allowed_ips = ['159.89.29.214']
+            client_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+            if client_ip:
+                client_ip = client_ip.split(',')[0].strip()
+            
+            if client_ip not in allowed_ips:
+                logger.warning(f"Platega webhook: Unauthorized IP {client_ip}")
+                return 'Forbidden', 403
+            
             data = request.json
             logger.info(f"Platega webhook: {data}")
 
