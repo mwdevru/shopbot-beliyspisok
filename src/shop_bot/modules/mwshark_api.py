@@ -65,17 +65,19 @@ class MWSharkAPI:
             data["name"] = name
         if extra_service:
             data["extra_service"] = True
-        return await self._request("POST", "/subscription", data)
+        return await self._request("POST", "/subscription/create", data)
 
-    async def extend_subscription(self, uuid: str, days: int) -> Dict[str, Any]:
-        data = {"days": days}
-        return await self._request("POST", f"/subscription/{uuid}/extend", data)
+    async def extend_subscription(self, uuid: str, days: int, devices: int = None) -> Dict[str, Any]:
+        data = {"uuid": uuid, "days": days}
+        if devices:
+            data["devices"] = devices
+        return await self._request("POST", "/subscription/extend", data)
 
     async def get_subscription_status(self, uuid: str) -> Dict[str, Any]:
         return await self._request("GET", f"/subscription/{uuid}")
 
     async def update_subscription_metadata(self, uuid: str, name: str = None, description: str = None, website: str = None, telegram: str = None) -> Dict[str, Any]:
-        data = {}
+        data = {"uuid": uuid}
         if name:
             data["name"] = name
         if description:
@@ -84,14 +86,15 @@ class MWSharkAPI:
             data["website"] = website
         if telegram:
             data["telegram"] = telegram
-        return await self._request("PUT", f"/subscription/{uuid}/metadata", data)
+        return await self._request("POST", "/subscription/metadata", data)
 
     async def revoke_subscription(self, uuid: str) -> Dict[str, Any]:
-        return await self._request("DELETE", f"/subscription/{uuid}")
+        data = {"uuid": uuid}
+        return await self._request("POST", "/subscription/revoke", data)
 
     async def change_devices(self, uuid: str, devices: int) -> Dict[str, Any]:
-        data = {"devices": devices}
-        return await self._request("PUT", f"/subscription/{uuid}/devices", data)
+        data = {"uuid": uuid, "devices": devices}
+        return await self._request("POST", "/subscription/devices", data)
 
     async def get_history(self) -> Dict[str, Any]:
         return await self._request("GET", "/history")
@@ -114,29 +117,32 @@ async def create_subscription_for_user(api_key: str, user_id: int, days: int, na
         data["name"] = name
     if extra_service:
         data["extra_service"] = True
-    return await api._request("POST", "/subscription", data)
+    return await api._request("POST", "/subscription/create", data)
 
 
-async def extend_subscription_for_user(api_key: str, uuid: str, days: int) -> Dict[str, Any]:
+async def extend_subscription_for_user(api_key: str, uuid: str, days: int, devices: int = None) -> Dict[str, Any]:
     api = MWSharkAPI(api_key)
-    data = {"days": days}
-    return await api._request("POST", f"/subscription/{uuid}/extend", data)
+    data = {"uuid": uuid, "days": days}
+    if devices:
+        data["devices"] = devices
+    return await api._request("POST", "/subscription/extend", data)
 
 
 async def revoke_subscription_for_user(api_key: str, uuid: str) -> Dict[str, Any]:
     api = MWSharkAPI(api_key)
-    return await api._request("DELETE", f"/subscription/{uuid}")
+    data = {"uuid": uuid}
+    return await api._request("POST", "/subscription/revoke", data)
 
 
 async def change_subscription_devices(api_key: str, uuid: str, devices: int) -> Dict[str, Any]:
     api = MWSharkAPI(api_key)
-    data = {"devices": devices}
-    return await api._request("PUT", f"/subscription/{uuid}/devices", data)
+    data = {"uuid": uuid, "devices": devices}
+    return await api._request("POST", "/subscription/devices", data)
 
 
 async def update_subscription_metadata(api_key: str, uuid: str, name: str = None, description: str = None, website: str = None, telegram: str = None) -> Dict[str, Any]:
     api = MWSharkAPI(api_key)
-    data = {}
+    data = {"uuid": uuid}
     if name:
         data["name"] = name
     if description:
@@ -145,7 +151,7 @@ async def update_subscription_metadata(api_key: str, uuid: str, name: str = None
         data["website"] = website
     if telegram:
         data["telegram"] = telegram
-    return await api._request("PUT", f"/subscription/{uuid}/metadata", data)
+    return await api._request("POST", "/subscription/metadata", data)
 
 
 async def get_subscription_status(api_key: str, uuid: str) -> Dict[str, Any]:
