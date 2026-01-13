@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}Логи{% endblock %}
+{% block content %}
+<h1 class="page-title">Логи системы</h1>
+<div class="logs-controls">
+<div class="logs-tabs">
+<button class="logs-tab active" data-category="all">Все</button>
+<button class="logs-tab" data-category="bot">🤖 Бот</button>
+<button class="logs-tab" data-category="web">🌐 Веб-панель</button>
+<button class="logs-tab" data-category="api">📡 API</button>
+<button class="logs-tab" data-category="webhook">🔗 Вебхуки</button>
+<button class="logs-tab" data-category="system">⚙️ Система</button>
+</div>
+<div class="logs-actions">
+<label class="logs-checkbox"><input type="checkbox" id="autoRefresh" checked><span>Авто-обновление</span></label>
+<button class="btn btn-ghost btn-sm" onclick="loadLogs()">🔄 Обновить</button>
+<button class="btn btn-danger btn-sm" onclick="clearLogs()">🗑 Очистить</button>
+</div>
+</div>
+<div class="logs-container">
+<div class="logs-header">
+<span class="logs-col-time">Время</span>
+<span class="logs-col-level">Уровень</span>
+<span class="logs-col-source">Источник</span>
+<span class="logs-col-message">Сообщение</span>
+</div>
+<div id="logsContent" class="logs-content">
+<div class="logs-loading">Загрузка логов...</div>
+</div>
+</div>
+<style>
+.logs-controls{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;margin-bottom:20px}
+.logs-tabs{display:flex;gap:8px;flex-wrap:wrap}
+.logs-tab{padding:8px 16px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;cursor:pointer;font-size:.875rem;transition:all .2s}
+.logs-tab:hover{border-color:var(--primary);color:var(--primary)}
+.logs-tab.active{background:var(--primary);border-color:var(--primary);color:#fff}
+.logs-actions{display:flex;align-items:center;gap:12px}
+.logs-checkbox{display:flex;align-items:center;gap:6px;font-size:.875rem;color:var(--text-muted);cursor:pointer}
+.logs-checkbox input{width:16px;height:16px;accent-color:var(--primary)}
+.logs-container{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.logs-header{display:grid;grid-template-columns:140px 80px 180px 1fr;gap:12px;padding:12px 16px;background:var(--bg);border-bottom:1px solid var(--border);font-size:.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase}
+.logs-content{max-height:600px;overflow-y:auto;font-family:'JetBrains Mono',monospace;font-size:.8rem}
+.logs-row{display:grid;grid-template-columns:140px 80px 180px 1fr;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border);transition:background .15s}
+.logs-row:hover{background:var(--bg)}
+.logs-row:last-child{border-bottom:none}
+.logs-col-time{color:var(--text-muted)}
+.logs-col-level{font-weight:600}
+.logs-col-source{color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.logs-col-message{word-break:break-word}
+.level-DEBUG{color:#6b7280}
+.level-INFO{color:var(--primary)}
+.level-WARNING{color:var(--warning)}
+.level-ERROR{color:var(--danger)}
+.level-CRITICAL{color:#dc2626;font-weight:700}
+.logs-loading,.logs-empty{padding:40px;text-align:center;color:var(--text-muted)}
+.logs-badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:600}
+.badge-bot{background:rgba(99,102,241,.15);color:#818cf8}
+.badge-web{background:rgba(34,197,94,.15);color:#4ade80}
+.badge-api{background:rgba(251,191,36,.15);color:#fbbf24}
+.badge-webhook{background:rgba(236,72,153,.15);color:#f472b6}
+.badge-system{background:rgba(148,163,184,.15);color:#94a3b8}
+@media(max-width:768px){
+.logs-header,.logs-row{grid-template-columns:1fr;gap:4px}
+.logs-header{display:none}
+.logs-row{padding:12px 16px}
+.logs-col-time,.logs-col-level,.logs-col-source{font-size:.7rem}
+}
+</style>
+<script>
+var currentCategory='all';
+var autoRefreshInterval=null;
+document.querySelectorAll('.logs-tab').forEach(function(tab){
+tab.addEventListener('click',function(){
+document.querySelectorAll('.logs-tab').forEach(function(t){t.classList.remove('active')});
+this.classList.add('active');
+currentCategory=this.dataset.category;
+loadLogs();
+});
+});
+document.getElementById('autoRefresh').addEventListener('change',function(){
+if(this.checked){startAutoRefresh()}else{stopAutoRefresh()}
+});
+function startAutoRefresh(){
+stopAutoRefresh();
+autoRefreshInterval=setInterval(loadLogs,3000);
+}
+function stopAutoRefresh(){
+if(autoRefreshInterval){clearInterval(autoRefreshInterval);autoRefreshInterval=null}
+}
+function loadLogs(){
+fetch('/api/logs?category='+currentCategory+'&limit=200')
+.then(function(r){return r.json()})
+.then(function(data){
+if(!data.success){
+document.getElementById('logsContent').innerHTML='<div class="logs-empty">Ошибка загрузки</div>';
+return;
+}
+if(!data.logs||data.logs.length===0){
+document.getElementById('logsContent').innerHTML='<div class="logs-empty">Логи пусты</div>';
+return;
+}
+var html='';
+data.logs.forEach(function(log){
+var cat=log.category||currentCategory;
+var badgeClass='badge-'+cat;
+html+='<div class="logs-row">';
+html+='<span class="logs-col-time">'+log.timestamp+'</span>';
+html+='<span class="logs-col-level level-'+log.level+'">'+log.level+'</span>';
+html+='<span class="logs-col-source" title="'+log.source+'"><span class="logs-badge '+badgeClass+'">'+cat+'</span> '+log.source+'</span>';
+html+='<span class="logs-col-message">'+escapeHtml(log.message)+'</span>';
+html+='</div>';
+});
+document.getElementById('logsContent').innerHTML=html;
+})
+.catch(function(){
+document.getElementById('logsContent').innerHTML='<div class="logs-empty">Ошибка загрузки</div>';
+});
+}
+function clearLogs(){
+if(!confirm('Очистить логи категории "'+currentCategory+'"?'))return;
+fetch('/api/logs/clear',{
+method:'POST',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify({category:currentCategory==='all'?null:currentCategory})
+}).then(function(){loadLogs()});
+}
+function escapeHtml(text){
+var div=document.createElement('div');
+div.textContent=text;
+return div.innerHTML;
+}
+loadLogs();
+if(document.getElementById('autoRefresh').checked){startAutoRefresh()}
+</script>
+{% endblock %}

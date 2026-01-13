@@ -8,6 +8,8 @@ import base64
 import subprocess
 import platform
 import psutil
+import threading
+from collections import deque
 from hmac import compare_digest
 from datetime import datetime, timedelta
 from functools import wraps
@@ -16,6 +18,87 @@ from flask import Flask, request, render_template, redirect, url_for, flash, ses
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+class LogBuffer:
+    def __init__(self, max_size=500):
+        self.buffers = {
+            'bot': deque(maxlen=max_size),
+            'web': deque(maxlen=max_size),
+            'api': deque(maxlen=max_size),
+            'webhook': deque(maxlen=max_size),
+            'system': deque(maxlen=max_size)
+        }
+        self.lock = threading.Lock()
+
+    def add(self, category, level, message, source=''):
+        with self.lock:
+            entry = {
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'level': level,
+                'message': message,
+                'source': source
+            }
+            if category in self.buffers:
+                self.buffers[category].append(entry)
+            self.buffers['system'].append(entry)
+
+    def get(self, category, limit=100):
+        with self.lock:
+            if category == 'all':
+                all_logs = []
+                for cat, buf in self.buffers.items():
+                    if cat != 'system':
+                        for log in buf:
+                            log_copy = log.copy()
+                            log_copy['category'] = cat
+                            all_logs.append(log_copy)
+                all_logs.sort(key=lambda x: x['timestamp'], reverse=True)
+                return list(all_logs[:limit])
+            buf = self.buffers.get(category, self.buffers['system'])
+            return list(buf)[-limit:][::-1]
+
+    def clear(self, category=None):
+        with self.lock:
+            if category and category in self.buffers:
+                self.buffers[category].clear()
+            elif category is None:
+                for buf in self.buffers.values():
+                    buf.clear()
+
+log_buffer = LogBuffer()
+
+class BufferedLogHandler(logging.Handler):
+    def __init__(self):
+        super().__init__()
+        self.category_map = {
+            'shop_bot.bot': 'bot',
+            'shop_bot.webhook_server': 'web',
+            'shop_bot.modules.mwshark_api': 'api',
+            'aiogram': 'bot',
+            'aiohttp': 'api',
+            'flask': 'web',
+            'werkzeug': 'web'
+        }
+
+    def emit(self, record):
+        try:
+            category = 'system'
+            for prefix, cat in self.category_map.items():
+                if record.name.startswith(prefix):
+                    category = cat
+                    break
+            if 'webhook' in record.name.lower() or 'webhook' in record.getMessage().lower():
+                category = 'webhook'
+            log_buffer.add(category, record.levelname, self.format(record), record.name)
+        except Exception:
+            pass
+
+buffered_handler = BufferedLogHandler()
+buffered_handler.setFormatter(logging.Formatter('%(message)s'))
+logging.getLogger().addHandler(buffered_handler)
+logging.getLogger('shop_bot').addHandler(buffered_handler)
+logging.getLogger('aiogram').addHandler(buffered_handler)
+logging.getLogger('aiohttp').addHandler(buffered_handler)
 
 CURRENT_VERSION = "1.4.9"
 GITHUB_REPO = "mwdevru/shopbot-beliyspisok"
@@ -954,5 +1037,25 @@ def create_webhook_app(bot_controller_instance):
             return jsonify({'success': False, 'message': 'Таймаут операции'}), 500
         except Exception as e:
             return jsonify({'success': False, 'message': str(e)}), 500
+
+    @flask_app.route('/logs')
+    @login_required
+    def logs_page():
+        return render_template('logs.html', **get_common_template_data())
+
+    @flask_app.route('/api/logs')
+    @login_required
+    def logs_api():
+        category = request.args.get('category', 'all')
+        limit = request.args.get('limit', 100, type=int)
+        logs = log_buffer.get(category, limit)
+        return jsonify({'success': True, 'logs': logs, 'category': category})
+
+    @flask_app.route('/api/logs/clear', methods=['POST'])
+    @login_required
+    def clear_logs_api():
+        category = request.json.get('category') if request.json else None
+        log_buffer.clear(category)
+        return jsonify({'success': True})
 
     return flask_app
