@@ -580,12 +580,13 @@ def get_user_router() -> Router:
             set_trial_used(user_id)
 
             subscription = result.get('subscription', {})
+            subscription_uuid = subscription.get('uuid', '')
             expiry_str = subscription.get('expiry_date', '')
             expiry_date = datetime.fromisoformat(expiry_str.replace('+00:00', ''))
             expiry_ms = int(expiry_date.timestamp() * 1000)
             subscription_link = subscription.get('link', '')
 
-            new_key_id = add_new_key(user_id=user_id, subscription_link=subscription_link, expiry_timestamp_ms=expiry_ms)
+            new_key_id = add_new_key(user_id=user_id, subscription_link=subscription_link, expiry_timestamp_ms=expiry_ms, subscription_uuid=subscription_uuid)
 
             await callback.message.delete()
             final_text = get_purchase_success_text("создан", 1, expiry_date, subscription_link)
@@ -1223,7 +1224,11 @@ async def process_successful_payment(bot: Bot, metadata: dict):
                 api_key=api_key, user_id=user_id, days=days, name=f"Subscription for {user_id}"
             )
         elif action == "extend":
-            result = await mwshark_api.extend_subscription_for_user(api_key=api_key, user_id=user_id, days=days)
+            key_data = get_key_by_id(key_id)
+            if not key_data or not key_data.get('subscription_uuid'):
+                await processing_message.edit_text("❌ UUID подписки не найден.")
+                return
+            result = await mwshark_api.extend_subscription_for_user(api_key=api_key, uuid=key_data['subscription_uuid'], days=days)
         else:
             await processing_message.edit_text("❌ Неизвестное действие.")
             return
@@ -1233,15 +1238,16 @@ async def process_successful_payment(bot: Bot, metadata: dict):
             return
 
         subscription = result.get('subscription', {})
+        subscription_uuid = subscription.get('uuid', '')
         expiry_str = subscription.get('expiry_date', '')
         expiry_date = datetime.fromisoformat(expiry_str.replace('+00:00', ''))
         expiry_ms = int(expiry_date.timestamp() * 1000)
         subscription_link = subscription.get('link', '')
 
         if action == "new":
-            key_id = add_new_key(user_id, subscription_link, expiry_ms)
+            key_id = add_new_key(user_id, subscription_link, expiry_ms, subscription_uuid)
         elif action == "extend":
-            update_key_info(key_id, subscription_link, expiry_ms)
+            update_key_info(key_id, subscription_link, expiry_ms, subscription_uuid)
 
         user_data = get_user(user_id)
         referrer_id = user_data.get('referred_by') if user_data else None

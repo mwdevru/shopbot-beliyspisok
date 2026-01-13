@@ -82,7 +82,13 @@ def initialize_db():
     
     cursor.execute('''CREATE TABLE IF NOT EXISTS vpn_keys (
         key_id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL,
-        subscription_link TEXT, expiry_date TIMESTAMP, created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+        subscription_link TEXT, expiry_date TIMESTAMP, created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        subscription_uuid TEXT)''')
+    
+    cursor.execute("PRAGMA table_info(vpn_keys)")
+    columns = [col[1] for col in cursor.fetchall()]
+    if 'subscription_uuid' not in columns:
+        cursor.execute("ALTER TABLE vpn_keys ADD COLUMN subscription_uuid TEXT")
     
     cursor.execute('''CREATE TABLE IF NOT EXISTS transactions (
         transaction_id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT,
@@ -327,12 +333,12 @@ def get_all_keys() -> List[Dict]:
     return [dict(row) for row in cursor.fetchall()]
 
 
-def add_new_key(user_id: int, subscription_link: str, expiry_timestamp_ms: int) -> Optional[int]:
+def add_new_key(user_id: int, subscription_link: str, expiry_timestamp_ms: int, subscription_uuid: str = None) -> Optional[int]:
     conn = get_sync_conn()
     cursor = conn.cursor()
     expiry_date = datetime.fromtimestamp(expiry_timestamp_ms / 1000)
-    cursor.execute("INSERT INTO vpn_keys (user_id, subscription_link, expiry_date) VALUES (?, ?, ?)",
-                   (user_id, subscription_link, expiry_date))
+    cursor.execute("INSERT INTO vpn_keys (user_id, subscription_link, expiry_date, subscription_uuid) VALUES (?, ?, ?, ?)",
+                   (user_id, subscription_link, expiry_date, subscription_uuid))
     conn.commit()
     return cursor.lastrowid
 
@@ -349,11 +355,15 @@ def delete_user_keys(user_id: int):
     conn.commit()
 
 
-def update_key_info(key_id: int, subscription_link: str, new_expiry_ms: int):
+def update_key_info(key_id: int, subscription_link: str, new_expiry_ms: int, subscription_uuid: str = None):
     conn = get_sync_conn()
     expiry_date = datetime.fromtimestamp(new_expiry_ms / 1000)
-    conn.execute("UPDATE vpn_keys SET subscription_link = ?, expiry_date = ? WHERE key_id = ?",
-                 (subscription_link, expiry_date, key_id))
+    if subscription_uuid:
+        conn.execute("UPDATE vpn_keys SET subscription_link = ?, expiry_date = ?, subscription_uuid = ? WHERE key_id = ?",
+                     (subscription_link, expiry_date, subscription_uuid, key_id))
+    else:
+        conn.execute("UPDATE vpn_keys SET subscription_link = ?, expiry_date = ? WHERE key_id = ?",
+                     (subscription_link, expiry_date, key_id))
     conn.commit()
 
 

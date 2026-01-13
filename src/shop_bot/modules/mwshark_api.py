@@ -31,6 +31,18 @@ class MWSharkAPI:
                         if response.status != 200:
                             logger.error(f"API Error: {response.status} - {result}")
                         return result
+                elif method == "PUT":
+                    async with session.put(url, headers=self.headers, json=data) as response:
+                        result = await response.json()
+                        if response.status != 200:
+                            logger.error(f"API Error: {response.status} - {result}")
+                        return result
+                elif method == "DELETE":
+                    async with session.delete(url, headers=self.headers, json=data) as response:
+                        result = await response.json()
+                        if response.status != 200:
+                            logger.error(f"API Error: {response.status} - {result}")
+                        return result
         except Exception as e:
             logger.error(f"MWShark API request failed: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
@@ -41,35 +53,45 @@ class MWSharkAPI:
     async def get_tariffs(self) -> Dict[str, Any]:
         return await self._request("GET", "/tariffs")
 
-    async def calculate_price(self, days: int) -> Dict[str, Any]:
-        return await self._request("GET", f"/calculate?days={days}")
+    async def calculate_price(self, days: int, devices: int = 1, extra_service: bool = False) -> Dict[str, Any]:
+        params = {"days": days, "devices": devices}
+        if extra_service:
+            params["extra_service"] = "true"
+        return await self._request("GET", "/calculate", params)
 
-    async def create_subscription(self, user_id: int, days: int = 30, devices: int = 1, name: str = None) -> Dict[str, Any]:
-        data = {"user_id": user_id, "days": days, "devices": devices}
+    async def create_subscription(self, days: int, devices: int = 1, name: str = None, extra_service: bool = False) -> Dict[str, Any]:
+        data = {"days": days, "devices": devices}
         if name:
             data["name"] = name
-        return await self._request("POST", "/subscription/create", data)
+        if extra_service:
+            data["extra_service"] = True
+        return await self._request("POST", "/subscription", data)
 
-    async def extend_subscription(self, user_id: int, days: int, devices: int = None) -> Dict[str, Any]:
-        data = {"user_id": user_id, "days": days}
-        if devices:
-            data["devices"] = devices
-        return await self._request("POST", "/subscription/extend", data)
+    async def extend_subscription(self, uuid: str, days: int) -> Dict[str, Any]:
+        data = {"days": days}
+        return await self._request("POST", f"/subscription/{uuid}/extend", data)
 
-    async def revoke_subscription(self, user_id: int) -> Dict[str, Any]:
-        data = {"user_id": user_id}
-        return await self._request("POST", "/subscription/revoke", data)
+    async def get_subscription_status(self, uuid: str) -> Dict[str, Any]:
+        return await self._request("GET", f"/subscription/{uuid}")
+
+    async def update_subscription_metadata(self, uuid: str, name: str = None, description: str = None, website: str = None, telegram: str = None) -> Dict[str, Any]:
+        data = {}
+        if name:
+            data["name"] = name
+        if description:
+            data["description"] = description
+        if website:
+            data["website"] = website
+        if telegram:
+            data["telegram"] = telegram
+        return await self._request("PUT", f"/subscription/{uuid}/metadata", data)
+
+    async def revoke_subscription(self, uuid: str) -> Dict[str, Any]:
+        return await self._request("DELETE", f"/subscription/{uuid}")
 
     async def change_devices(self, uuid: str, devices: int) -> Dict[str, Any]:
-        data = {"uuid": uuid, "devices": devices}
-        return await self._request("POST", "/subscription/devices", data)
-
-    async def get_grants(self, user_id: int = None) -> Dict[str, Any]:
-        endpoint = f"/grants?user_id={user_id}" if user_id else "/grants"
-        return await self._request("GET", endpoint)
-
-    async def get_subscription_status(self, user_id: int) -> Dict[str, Any]:
-        return await self._request("GET", f"/subscription/{user_id}")
+        data = {"devices": devices}
+        return await self._request("PUT", f"/subscription/{uuid}/devices", data)
 
     async def get_history(self) -> Dict[str, Any]:
         return await self._request("GET", "/history")
@@ -85,42 +107,50 @@ def get_api(api_key: str = None) -> Optional[MWSharkAPI]:
     return _api_instance
 
 
-async def create_subscription_for_user(api_key: str, user_id: int, days: int, name: str = None, devices: int = 1) -> Dict[str, Any]:
+async def create_subscription_for_user(api_key: str, user_id: int, days: int, name: str = None, devices: int = 1, extra_service: bool = False) -> Dict[str, Any]:
     api = MWSharkAPI(api_key)
-    data = {"user_id": user_id, "days": days, "devices": devices}
+    data = {"days": days, "devices": devices}
     if name:
         data["name"] = name
-    return await api._request("POST", "/subscription/create", data)
+    if extra_service:
+        data["extra_service"] = True
+    return await api._request("POST", "/subscription", data)
 
 
-async def extend_subscription_for_user(api_key: str, user_id: int, days: int, devices: int = None) -> Dict[str, Any]:
+async def extend_subscription_for_user(api_key: str, uuid: str, days: int) -> Dict[str, Any]:
     api = MWSharkAPI(api_key)
-    data = {"user_id": user_id, "days": days}
-    if devices:
-        data["devices"] = devices
-    return await api._request("POST", "/subscription/extend", data)
+    data = {"days": days}
+    return await api._request("POST", f"/subscription/{uuid}/extend", data)
 
 
-async def revoke_subscription_for_user(api_key: str, user_id: int) -> Dict[str, Any]:
+async def revoke_subscription_for_user(api_key: str, uuid: str) -> Dict[str, Any]:
     api = MWSharkAPI(api_key)
-    data = {"user_id": user_id}
-    return await api._request("POST", "/subscription/revoke", data)
+    return await api._request("DELETE", f"/subscription/{uuid}")
 
 
 async def change_subscription_devices(api_key: str, uuid: str, devices: int) -> Dict[str, Any]:
     api = MWSharkAPI(api_key)
-    data = {"uuid": uuid, "devices": devices}
-    return await api._request("POST", "/subscription/devices", data)
+    data = {"devices": devices}
+    return await api._request("PUT", f"/subscription/{uuid}/devices", data)
 
 
-async def get_user_grants(api_key: str, user_id: int = None) -> Dict[str, Any]:
+async def update_subscription_metadata(api_key: str, uuid: str, name: str = None, description: str = None, website: str = None, telegram: str = None) -> Dict[str, Any]:
     api = MWSharkAPI(api_key)
-    return await api.get_grants(user_id)
+    data = {}
+    if name:
+        data["name"] = name
+    if description:
+        data["description"] = description
+    if website:
+        data["website"] = website
+    if telegram:
+        data["telegram"] = telegram
+    return await api._request("PUT", f"/subscription/{uuid}/metadata", data)
 
 
-async def get_user_subscription(api_key: str, user_id: int) -> Dict[str, Any]:
+async def get_subscription_status(api_key: str, uuid: str) -> Dict[str, Any]:
     api = MWSharkAPI(api_key)
-    return await api._request("GET", f"/subscription/{user_id}")
+    return await api._request("GET", f"/subscription/{uuid}")
 
 
 async def get_api_balance(api_key: str) -> Dict[str, Any]:
@@ -133,9 +163,9 @@ async def get_api_tariffs(api_key: str) -> Dict[str, Any]:
     return await api.get_tariffs()
 
 
-async def calculate_api_price(api_key: str, days: int) -> Dict[str, Any]:
+async def calculate_api_price(api_key: str, days: int, devices: int = 1, extra_service: bool = False) -> Dict[str, Any]:
     api = MWSharkAPI(api_key)
-    return await api.calculate_price(days)
+    return await api.calculate_price(days, devices, extra_service)
 
 
 async def get_api_history(api_key: str) -> Dict[str, Any]:

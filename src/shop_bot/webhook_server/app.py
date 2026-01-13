@@ -348,8 +348,13 @@ def create_webhook_app(bot_controller_instance):
             loop = current_app.config.get('EVENT_LOOP')
             if loop and loop.is_running():
                 if days > 0:
+                    key_data = get_key_by_id(key_id) if key_id else None
+                    if not key_data or not key_data.get('subscription_uuid'):
+                        flash('UUID подписки не найден.', 'danger')
+                        return redirect(url_for('users_page'))
+                    
                     future = asyncio.run_coroutine_threadsafe(
-                        mwshark_api.extend_subscription_for_user(api_key, user_id, days), loop
+                        mwshark_api.extend_subscription_for_user(api_key, key_data['subscription_uuid'], days), loop
                     )
                     result = future.result(timeout=10)
                     if result.get('success'):
@@ -359,8 +364,13 @@ def create_webhook_app(bot_controller_instance):
                     else:
                         flash(f"Ошибка API: {result.get('error', 'Неизвестная ошибка')}", 'danger')
                 else:
+                    key_data = get_key_by_id(key_id) if key_id else None
+                    if not key_data or not key_data.get('subscription_uuid'):
+                        flash('UUID подписки не найден.', 'danger')
+                        return redirect(url_for('users_page'))
+                    
                     future = asyncio.run_coroutine_threadsafe(
-                        mwshark_api.revoke_subscription_for_user(api_key, user_id), loop
+                        mwshark_api.revoke_subscription_for_user(api_key, key_data['subscription_uuid']), loop
                     )
                     result = future.result(timeout=10)
                     if result.get('success'):
@@ -394,12 +404,13 @@ def create_webhook_app(bot_controller_instance):
                 
                 if result.get('success'):
                     subscription = result.get('subscription', {})
+                    subscription_uuid = subscription.get('uuid', '')
                     expiry_str = subscription.get('expiry_date', '')
                     expiry_date = datetime.fromisoformat(expiry_str.replace('+00:00', ''))
                     expiry_ms = int(expiry_date.timestamp() * 1000)
                     subscription_link = subscription.get('link', '')
                     
-                    add_new_key(user_id, subscription_link, expiry_ms)
+                    add_new_key(user_id, subscription_link, expiry_ms, subscription_uuid)
                     flash(f'Ключ на {days} дней выдан пользователю {user_id}.', 'success')
                 else:
                     flash(f"Ошибка API: {result.get('error', 'Неизвестная ошибка')}", 'danger')
