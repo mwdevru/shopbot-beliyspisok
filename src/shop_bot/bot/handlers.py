@@ -586,7 +586,7 @@ def get_user_router() -> Router:
             expiry_ms = int(expiry_date.timestamp() * 1000)
             subscription_link = subscription.get('link', '')
 
-            if get_setting("branding_enabled") == "true" and subscription_uuid:
+            if get_setting("branding_enabled") == "true" and subscription_uuid and trial_days >= 30:
                 branding_name = get_setting("branding_name")
                 if branding_name:
                     await mwshark_api.update_subscription_metadata(
@@ -1234,7 +1234,7 @@ async def process_successful_payment(bot: Bot, metadata: dict):
             result = await mwshark_api.create_subscription_for_user(
                 api_key=api_key, user_id=user_id, days=days
             )
-            if result.get('success'):
+            if result.get('success') and days >= 30:
                 subscription_uuid = result.get('subscription', {}).get('uuid', '')
                 if get_setting("branding_enabled") == "true" and subscription_uuid:
                     branding_name = get_setting("branding_name")
