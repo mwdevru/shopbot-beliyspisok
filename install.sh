@@ -37,7 +37,7 @@ if [ -f "$NGINX_CONF_FILE" ]; then
     echo -e "${GREEN}✔ Код успешно обновлен.${NC}"
 
     echo -e "\n${CYAN}Шаг 2: Пересборка и перезапуск Docker-контейнеров...${NC}"
-    sudo docker compose down --remove-orphans && sudo docker compose up -d --build
+    sudo docker-compose down --remove-orphans && sudo docker-compose up -d --build
     
     echo -e "\n\n${GREEN}==============================================${NC}"
     echo -e "${GREEN}      🎉 Обновление успешно завершено! 🎉      ${NC}"
@@ -107,7 +107,6 @@ NGINX_ENABLED_FILE="/etc/nginx/sites-enabled/${PROJECT_DIR}.conf"
 
 sudo rm -rf /etc/nginx/sites-enabled/default
 
-
 sudo bash -c "cat > $NGINX_CONF_FILE" <<EOF
 server {
     listen 80;
@@ -127,7 +126,6 @@ fi
 
 sudo nginx -t && sudo systemctl reload nginx
 
-
 if [ -d "/etc/letsencrypt/live/$DOMAIN" ]; then
     echo -e "${GREEN}✔ SSL-сертификаты уже существуют.${NC}"
 else
@@ -139,12 +137,10 @@ else
     echo -e "${GREEN}✔ SSL-сертификаты получены.${NC}"
 fi
 
-
 if [ ! -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
     echo -e "${RED}Ошибка: SSL-сертификаты не найдены!${NC}"
     exit 1
 fi
-
 
 sudo bash -c "cat > $NGINX_CONF_FILE" <<EOF
 server {
@@ -178,10 +174,10 @@ sudo nginx -t && sudo systemctl reload nginx
 echo -e "${GREEN}✔ Nginx настроен с SSL.${NC}"
 
 echo -e "\n${CYAN}Шаг 5: Сборка и запуск Docker-контейнера...${NC}"
-if [ "$(sudo docker compose ps -q 2>/dev/null)" ]; then
-    sudo docker compose down
+if [ "$(sudo docker-compose ps -q 2>/dev/null)" ]; then
+    sudo docker-compose down
 fi
-sudo docker compose up -d --build
+sudo docker-compose up -d --build
 
 echo -e "\n\n${GREEN}=====================================================${NC}"
 echo -e "${GREEN}      🎉 Установка успешно завершена! 🎉      ${NC}"
