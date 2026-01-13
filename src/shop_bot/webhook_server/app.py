@@ -128,8 +128,16 @@ ALL_SETTINGS_KEYS = [
     "heleket_merchant_id", "heleket_api_key", "domain", "referral_percentage",
     "referral_discount", "force_subscription", "trial_enabled", "trial_duration_days",
     "enable_referrals", "minimum_withdrawal", "support_group_id", "support_bot_token",
-    "mwshark_api_key", "platega_merchant_id", "platega_secret_key", "platega_payment_method"
+    "mwshark_api_key", "platega_merchant_id", "platega_secret_key", "platega_payment_method",
+    "setup_completed"
 ]
+
+REQUIRED_SETUP_FIELDS = {
+    "mwshark_api_key": "MW API ключ",
+    "telegram_bot_token": "Token Telegram-бота",
+    "telegram_bot_username": "Username бота",
+    "admin_telegram_id": "Admin Telegram ID"
+}
 
 
 def create_webhook_app(bot_controller_instance):
@@ -138,6 +146,20 @@ def create_webhook_app(bot_controller_instance):
 
     flask_app = Flask(__name__, template_folder='templates', static_folder='static')
     flask_app.config['SECRET_KEY'] = 'lolkek4eburek'
+
+    def get_setup_state():
+        settings = get_all_settings()
+        missing_keys = [key for key in REQUIRED_SETUP_FIELDS if not settings.get(key)]
+        default_creds = settings.get("panel_login") == "admin" and settings.get("panel_password") == "admin"
+        auto_configured = not missing_keys and not default_creds
+        needs_setup = bool(missing_keys or default_creds or ((settings.get("setup_completed") != "true") and not auto_configured))
+        return {
+            "needs_setup": needs_setup,
+            "missing_keys": missing_keys,
+            "missing_labels": [REQUIRED_SETUP_FIELDS[k] for k in missing_keys],
+            "default_creds": default_creds,
+            "settings": settings
+        }
 
     @flask_app.context_processor
     def inject_globals():
@@ -152,16 +174,27 @@ def create_webhook_app(bot_controller_instance):
         def decorated_function(*args, **kwargs):
             if 'logged_in' not in session:
                 return redirect(url_for('login_page'))
+            setup_state = get_setup_state()
+            if setup_state["needs_setup"] and request.endpoint not in {'setup_page', 'logout_page'}:
+                return redirect(url_for('setup_page'))
             return f(*args, **kwargs)
         return decorated_function
 
     @flask_app.route('/login', methods=['GET', 'POST'])
     def login_page():
         settings = get_all_settings()
+        if 'logged_in' in session:
+            setup_state = get_setup_state()
+            if setup_state["needs_setup"]:
+                return redirect(url_for('setup_page'))
+            return redirect(url_for('dashboard_page'))
         if request.method == 'POST':
             if (request.form.get('username') == settings.get("panel_login") and
                 request.form.get('password') == settings.get("panel_password")):
                 session['logged_in'] = True
+                setup_state = get_setup_state()
+                if setup_state["needs_setup"]:
+                    return redirect(url_for('setup_page'))
                 return redirect(url_for('dashboard_page'))
             flash('Неверный логин или пароль', 'danger')
         return render_template('login.html')
@@ -173,12 +206,55 @@ def create_webhook_app(bot_controller_instance):
         flash('Вы успешно вышли.', 'success')
         return redirect(url_for('login_page'))
 
+    @flask_app.route('/setup', methods=['GET', 'POST'])
+    @login_required
+    def setup_page():
+        setup_state = get_setup_state()
+        settings = setup_state["settings"]
+        form_keys = [
+            "panel_login", "panel_password", "mwshark_api_key", "telegram_bot_token",
+            "telegram_bot_username", "admin_telegram_id", "support_bot_token",
+            "support_group_id", "support_user", "support_text", "receipt_email",
+            "domain", "about_text", "channel_url"
+        ]
+
+        prefill = dict(settings)
+
+        if request.method == 'POST':
+            form_values = {key: (request.form.get(key, '') or '').strip() for key in form_keys}
+
+            missing_labels = [label for key, label in REQUIRED_SETUP_FIELDS.items() if not form_values.get(key)]
+            if not form_values.get("panel_login"):
+                missing_labels.append("Логин панели")
+            if not form_values.get("panel_password") and settings.get("panel_password") == "admin":
+                missing_labels.append("Новый пароль панели")
+
+            if missing_labels:
+                flash(f"Заполни обязательные поля: {', '.join(missing_labels)}", 'danger')
+                prefill.update(form_values)
+            else:
+                for key, value in form_values.items():
+                    if key == "panel_password" and not value:
+                        continue
+                    update_setting(key, value)
+                update_setting("setup_completed", "true")
+                flash("Мастер настройки завершен. Можно запускать ботов.", "success")
+                return redirect(url_for('dashboard_page'))
+
+        return render_template(
+            'setup.html',
+            settings=prefill,
+            setup_state=setup_state,
+            required_labels=REQUIRED_SETUP_FIELDS
+        )
+
     def get_common_template_data():
         bot_status = _bot_controller.get_status()
-        settings = get_all_settings()
+        setup_state = get_setup_state()
+        settings = setup_state["settings"]
         required = ['telegram_bot_token', 'telegram_bot_username', 'admin_telegram_id', 'mwshark_api_key']
         all_settings_ok = all(settings.get(key) for key in required)
-        return {"bot_status": bot_status, "all_settings_ok": all_settings_ok}
+        return {"bot_status": bot_status, "all_settings_ok": all_settings_ok, "setup_state": setup_state}
 
     @flask_app.route('/')
     @login_required
@@ -352,7 +428,7 @@ def create_webhook_app(bot_controller_instance):
         
         if not api_key or not user_keys:
             delete_user_keys(user_id)
-            flash(f"Ключи пользователя {user_id} удалены.", 'success')
+            flash(f"Ключи пользователя {user_id} удалены (локально).", 'success')
             return redirect(url_for('user_detail_page', user_id=user_id))
         
         try:
@@ -362,16 +438,13 @@ def create_webhook_app(bot_controller_instance):
                 for key in user_keys:
                     uuid = key.get('subscription_uuid')
                     if uuid:
-                        try:
-                            future = asyncio.run_coroutine_threadsafe(
-                                mwshark_api.revoke_subscription_for_user(api_key, uuid), loop
-                            )
-                            result = future.result(timeout=10)
-                            if result.get('success'):
-                                revoke_info = result.get('subscription', {})
-                                revoked_days += revoke_info.get('days_revoked', 0)
-                        except Exception:
-                            pass
+                        future = asyncio.run_coroutine_threadsafe(
+                            mwshark_api.revoke_subscription_for_user(api_key, uuid), loop
+                        )
+                        result = future.result(timeout=10)
+                        if result.get('success'):
+                            revoke_info = result.get('revoke', {})
+                            revoked_days += revoke_info.get('days_revoked', 0)
                 
                 delete_user_keys(user_id)
                 if revoked_days > 0:
@@ -380,11 +453,11 @@ def create_webhook_app(bot_controller_instance):
                     flash(f"Ключи удалены.", 'success')
             else:
                 delete_user_keys(user_id)
-                flash(f"Ключи удалены.", 'success')
+                flash(f"Ключи удалены (event loop недоступен).", 'warning')
         except Exception as e:
             logger.error(f"Revoke keys error: {e}")
             delete_user_keys(user_id)
-            flash(f"Ключи удалены.", 'success')
+            flash(f"Ключи удалены локально. Ошибка API: {e}", 'warning')
         
         return redirect(url_for('user_detail_page', user_id=user_id))
 
@@ -498,20 +571,6 @@ def create_webhook_app(bot_controller_instance):
                     expiry_date = datetime.fromisoformat(expiry_str.replace('+00:00', ''))
                     expiry_ms = int(expiry_date.timestamp() * 1000)
                     subscription_link = subscription.get('link', '')
-                    
-                    if days >= 30 and get_setting("branding_enabled") == "true" and subscription_uuid:
-                        branding_name = get_setting("branding_name")
-                        if branding_name:
-                            branding_future = asyncio.run_coroutine_threadsafe(
-                                mwshark_api.update_subscription_metadata(
-                                    api_key, subscription_uuid,
-                                    name=branding_name,
-                                    description=get_setting("branding_description"),
-                                    website=get_setting("branding_website"),
-                                    telegram=get_setting("branding_telegram")
-                                ), loop
-                            )
-                            branding_future.result(timeout=10)
                     
                     add_new_key(user_id, subscription_link, expiry_ms, subscription_uuid)
                     flash(f'Ключ на {days} дней выдан пользователю {user_id}.', 'success')
