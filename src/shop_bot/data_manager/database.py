@@ -98,17 +98,7 @@ def initialize_db():
     
     cursor.execute('''CREATE TABLE IF NOT EXISTS bot_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '')''')
     
-    cursor.execute('''CREATE TABLE IF NOT EXISTS support_threads (
-        user_id INTEGER PRIMARY KEY, thread_id INTEGER NOT NULL,
-        category TEXT, status TEXT DEFAULT 'open', priority TEXT DEFAULT 'normal',
-        message_count INTEGER DEFAULT 0, rating INTEGER,
-        created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-    
-    cursor.execute('''CREATE TABLE IF NOT EXISTS support_notes (
-        note_id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL,
-        note_text TEXT NOT NULL, author TEXT,
-        created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS support_threads (user_id INTEGER PRIMARY KEY, thread_id INTEGER NOT NULL)''')
     
     cursor.execute('''CREATE TABLE IF NOT EXISTS plans (
         plan_id INTEGER PRIMARY KEY AUTOINCREMENT, plan_name TEXT NOT NULL,
@@ -160,15 +150,35 @@ def initialize_db():
         "android_url": "https://telegra.ph/Instrukciya-Android-11-09",
         "windows_url": "https://telegra.ph/Instrukciya-Windows-11-09",
         "ios_url": "https://telegra.ph/Instrukcii-ios-11-09",
-        "linux_url": "https://telegra.ph/Instrukciya-Linux-11-09"
+        "linux_url": "https://telegra.ph/Instrukciya-Linux-11-09",
+        "setup_completed": "false"
     }
     
     for key, value in defaults.items():
         cursor.execute("INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)", (key, value))
     
     conn.commit()
+    _hydrate_setup_flag_if_configured()
     cleanup_duplicate_settings()
     logger.info(f"Database initialized at {DB_FILE}")
+
+
+def _hydrate_setup_flag_if_configured():
+    """
+    Backfill the setup_completed flag for existing installations that already
+    have all critical settings in place to avoid forcing the new wizard.
+    """
+    try:
+        settings = get_all_settings()
+        required = ["mwshark_api_key", "telegram_bot_token", "telegram_bot_username", "admin_telegram_id"]
+        default_creds = settings.get("panel_login") == "admin" and settings.get("panel_password") == "admin"
+        already_configured = all(settings.get(k) for k in required) and not default_creds
+        setup_completed = settings.get("setup_completed")
+        if already_configured and setup_completed != "true":
+            update_setting("setup_completed", "true")
+            logger.info("Setup flag auto-enabled for existing configured installation.")
+    except Exception as e:
+        logger.error(f"Failed to hydrate setup flag: {e}")
 
 
 def migrate_from_old_db():
@@ -552,12 +562,9 @@ def get_latest_transaction(user_id: int) -> Optional[Dict]:
     return dict(row) if row else None
 
 
-def add_support_thread(user_id: int, thread_id: int, category: str = None):
+def add_support_thread(user_id: int, thread_id: int):
     conn = get_sync_conn()
-    conn.execute("""INSERT OR REPLACE INTO support_threads 
-                    (user_id, thread_id, category, status, priority, message_count, created_date, updated_date) 
-                    VALUES (?, ?, ?, 'open', 'normal', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)""", 
-                 (user_id, thread_id, category))
+    conn.execute("INSERT OR REPLACE INTO support_threads (user_id, thread_id) VALUES (?, ?)", (user_id, thread_id))
     conn.commit()
 
 
@@ -573,95 +580,6 @@ def get_user_id_by_thread(thread_id: int) -> Optional[int]:
     cursor.execute("SELECT user_id FROM support_threads WHERE thread_id = ?", (thread_id,))
     result = cursor.fetchone()
     return result[0] if result else None
-
-
-def delete_support_thread(user_id: int):
-    conn = get_sync_conn()
-    conn.execute("DELETE FROM support_threads WHERE user_id = ?", (user_id,))
-    conn.execute("DELETE FROM support_notes WHERE user_id = ?", (user_id,))
-    conn.commit()
-
-
-def get_support_ticket_status(user_id: int) -> Optional[str]:
-    cursor = get_sync_conn().cursor()
-    cursor.execute("SELECT status FROM support_threads WHERE user_id = ?", (user_id,))
-    result = cursor.fetchone()
-    return result[0] if result else None
-
-
-def update_support_ticket_status(user_id: int, status: str):
-    conn = get_sync_conn()
-    conn.execute("UPDATE support_threads SET status = ?, updated_date = CURRENT_TIMESTAMP WHERE user_id = ?", 
-                 (status, user_id))
-    conn.commit()
-
-
-def get_support_ticket_priority(user_id: int) -> Optional[str]:
-    cursor = get_sync_conn().cursor()
-    cursor.execute("SELECT priority FROM support_threads WHERE user_id = ?", (user_id,))
-    result = cursor.fetchone()
-    return result[0] if result else None
-
-
-def update_support_ticket_priority(user_id: int, priority: str):
-    conn = get_sync_conn()
-    conn.execute("UPDATE support_threads SET priority = ?, updated_date = CURRENT_TIMESTAMP WHERE user_id = ?", 
-                 (priority, user_id))
-    conn.commit()
-
-
-def increment_ticket_messages(user_id: int):
-    conn = get_sync_conn()
-    conn.execute("UPDATE support_threads SET message_count = message_count + 1, updated_date = CURRENT_TIMESTAMP WHERE user_id = ?", 
-                 (user_id,))
-    conn.commit()
-
-
-def add_ticket_note(user_id: int, note_text: str, author: str):
-    conn = get_sync_conn()
-    conn.execute("INSERT INTO support_notes (user_id, note_text, author) VALUES (?, ?, ?)", 
-                 (user_id, note_text, author))
-    conn.commit()
-
-
-def get_ticket_notes(user_id: int) -> List[Dict]:
-    cursor = get_sync_conn().cursor()
-    cursor.execute("SELECT * FROM support_notes WHERE user_id = ? ORDER BY created_date DESC", (user_id,))
-    return [dict(row) for row in cursor.fetchall()]
-
-
-def save_support_rating(user_id: int, rating: int):
-    conn = get_sync_conn()
-    conn.execute("UPDATE support_threads SET rating = ?, updated_date = CURRENT_TIMESTAMP WHERE user_id = ?", 
-                 (rating, user_id))
-    conn.commit()
-
-
-def get_support_stats() -> Dict:
-    stats = {'total': 0, 'open': 0, 'in_progress': 0, 'resolved': 0, 'closed': 0, 'avg_rating': 0}
-    cursor = get_sync_conn().cursor()
-    cursor.execute("SELECT COUNT(*) FROM support_threads")
-    stats['total'] = cursor.fetchone()[0] or 0
-    cursor.execute("SELECT COUNT(*) FROM support_threads WHERE status = 'open'")
-    stats['open'] = cursor.fetchone()[0] or 0
-    cursor.execute("SELECT COUNT(*) FROM support_threads WHERE status = 'in_progress'")
-    stats['in_progress'] = cursor.fetchone()[0] or 0
-    cursor.execute("SELECT COUNT(*) FROM support_threads WHERE status = 'resolved'")
-    stats['resolved'] = cursor.fetchone()[0] or 0
-    cursor.execute("SELECT COUNT(*) FROM support_threads WHERE status = 'closed'")
-    stats['closed'] = cursor.fetchone()[0] or 0
-    cursor.execute("SELECT AVG(rating) FROM support_threads WHERE rating IS NOT NULL")
-    avg = cursor.fetchone()[0]
-    stats['avg_rating'] = round(avg, 2) if avg else 0
-    return stats
-
-
-def get_all_support_tickets() -> List[Dict]:
-    cursor = get_sync_conn().cursor()
-    cursor.execute("""SELECT st.*, u.username FROM support_threads st 
-                      LEFT JOIN users u ON st.user_id = u.telegram_id 
-                      ORDER BY st.updated_date DESC""")
-    return [dict(row) for row in cursor.fetchall()]
 
 
 def get_user_count() -> int:
