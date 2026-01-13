@@ -281,6 +281,7 @@ def get_support_router() -> Router:
             await state.clear()
             return
 
+        thread_id = None
         try:
             cat_name = SUPPORT_CATEGORIES.get(category, "Другое")
             thread_name = f"[{cat_name.split()[0]}] @{username} ({user_id})"
@@ -298,14 +299,17 @@ def get_support_router() -> Router:
             else:
                 set_ticket_priority(user_id, TicketPriority.NORMAL)
 
-            summary_text = await get_user_summary(user_id, username, category)
-            await bot.send_message(
-                chat_id=SUPPORT_GROUP_ID,
-                message_thread_id=thread_id,
-                text=summary_text,
-                parse_mode=ParseMode.HTML,
-                reply_markup=create_ticket_actions_keyboard(user_id)
-            )
+            try:
+                summary_text = await get_user_summary(user_id, username, category)
+                await bot.send_message(
+                    chat_id=SUPPORT_GROUP_ID,
+                    message_thread_id=thread_id,
+                    text=summary_text,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=create_ticket_actions_keyboard(user_id)
+                )
+            except Exception as summary_err:
+                logger.warning(f"Failed to send summary to thread {thread_id}: {summary_err}")
 
             logger.info(f"Created support thread {thread_id} for user {user_id}, category: {category}")
 
@@ -319,9 +323,16 @@ def get_support_router() -> Router:
 
         except Exception as e:
             logger.error(f"Failed to create support thread for user {user_id}: {e}", exc_info=True)
-            await callback.message.edit_text(
-                "❌ Не удалось создать тикет. Попробуйте позже или напишите напрямую администратору."
-            )
+            if thread_id:
+                await callback.message.edit_text(
+                    f"✅ <b>Тикет создан!</b>\n\n"
+                    f"Опишите вашу проблему подробно.",
+                    parse_mode=ParseMode.HTML
+                )
+            else:
+                await callback.message.edit_text(
+                    "❌ Не удалось создать тикет. Попробуйте позже или напишите напрямую администратору."
+                )
             await state.clear()
 
     @support_router.callback_query(F.data == "support_cancel")

@@ -1,48 +1,66 @@
-<!DOCTYPE html>
-<html lang="ru">
-	<head>
-		<meta charset="UTF-8" />
-		<title>ОТЛАДКА - Панель управления</title>
-	</head>
-	<body>
-		<h1>Страница отладки</h1>
-		<hr />
-
-		<h2>Статус Бота</h2>
-		{% if bot_status.is_running %}
-		<p style="color: green">Статус: <strong>Запущен</strong></p>
-		{% else %}
-		<p style="color: red">Статус: <strong>Остановлен</strong></p>
-		{% endif %}
-
-		<hr />
-
-		<h2>Управление</h2>
-
-		<h3>Запустить Бота</h3>
-		<form action="{{ url_for('start_bot_route') }}" method="post">
-			<button type="submit">ЗАПУСТИТЬ</button>
-		</form>
-
-		<br />
-
-		<h3>Остановить Бота</h3>
-		<form action="{{ url_for('stop_bot_route') }}" method="post">
-			<button type="submit">ОСТАНОВИТЬ</button>
-		</form>
-
-		<hr />
-
-		<h2>Сообщения от сервера:</h2>
-		{% with messages = get_flashed_messages(with_categories=true) %} {% if
-		messages %}
-		<ul>
-			{% for category, message in messages %}
-			<li class="{{ category }}">{{ message }}</li>
-			{% endfor %}
-		</ul>
-		{% else %}
-		<p>Сообщений нет.</p>
-		{% endif %} {% endwith %}
-	</body>
-</html>
+{% extends "base.html" %}
+{% block title %}Безопасность{% endblock %}
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <h4 class="mb-4">🛡️ Настройки безопасности</h4>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">📱 Активные сессии</h5>
+                </div>
+                <div class="card-body">
+                    <div id="sessions-list">Загрузка...</div>
+                    <button class="btn btn-danger mt-3" onclick="kickAllSessions()">
+                        🚪 Завершить все сессии
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">🔒 Защита от атак</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Rate Limiting:</strong> 100 запросов/мин</p>
+                    <p><strong>Блокировка:</strong> 5 мин при превышении</p>
+                    <p><strong>Сессии:</strong> макс. 5 на пользователя</p>
+                    <p><strong>Таймаут:</strong> 2 часа</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+function loadSessions() {
+    fetch('/api/sessions')
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                let html = '<table class="table table-sm"><thead><tr><th>ID</th><th>IP</th><th>Время</th><th></th></tr></thead><tbody>';
+                data.sessions.forEach(s => {
+                    html += `<tr><td>${s.id}</td><td>${s.ip}</td><td>${s.time}</td><td>${s.current ? '<span class="badge bg-success">Текущая</span>' : ''}</td></tr>`;
+                });
+                html += '</tbody></table>';
+                document.getElementById('sessions-list').innerHTML = html;
+            }
+        });
+}
+function kickAllSessions() {
+    if (confirm('Завершить все сессии кроме текущей?')) {
+        fetch('/api/sessions/kick-all', {method: 'POST'})
+            .then(r => r.json())
+            .then(data => {
+                alert(data.message);
+                loadSessions();
+            });
+    }
+}
+loadSessions();
+</script>
+{% endblock %}

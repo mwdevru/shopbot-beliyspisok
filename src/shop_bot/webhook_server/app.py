@@ -9,15 +9,85 @@ import subprocess
 import platform
 import psutil
 import threading
-from collections import deque
+import time
+import re
+from collections import deque, defaultdict
 from hmac import compare_digest
 from datetime import datetime, timedelta
 from functools import wraps
 from math import ceil
-from flask import Flask, request, render_template, redirect, url_for, flash, session, current_app, jsonify
+from flask import Flask, request, render_template, redirect, url_for, flash, session, current_app, jsonify, abort
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+class RateLimiter:
+    def __init__(self, max_requests=60, window_seconds=60):
+        self.max_requests = max_requests
+        self.window = window_seconds
+        self.requests = defaultdict(list)
+        self.blocked = {}
+        self.lock = threading.Lock()
+
+    def is_allowed(self, ip):
+        now = time.time()
+        with self.lock:
+            if ip in self.blocked:
+                if now < self.blocked[ip]:
+                    return False
+                del self.blocked[ip]
+            self.requests[ip] = [t for t in self.requests[ip] if now - t < self.window]
+            if len(self.requests[ip]) >= self.max_requests:
+                self.blocked[ip] = now + 300
+                return False
+            self.requests[ip].append(now)
+            return True
+
+    def block(self, ip, seconds=300):
+        with self.lock:
+            self.blocked[ip] = time.time() + seconds
+
+
+class SessionManager:
+    def __init__(self, max_sessions=3, session_timeout=3600):
+        self.max_sessions = max_sessions
+        self.timeout = session_timeout
+        self.sessions = defaultdict(list)
+        self.lock = threading.Lock()
+
+    def add_session(self, user, session_id, ip):
+        now = time.time()
+        with self.lock:
+            self.sessions[user] = [(s, t, i) for s, t, i in self.sessions[user] if now - t < self.timeout]
+            if len(self.sessions[user]) >= self.max_sessions:
+                self.sessions[user].pop(0)
+            self.sessions[user].append((session_id, now, ip))
+
+    def is_valid(self, user, session_id):
+        now = time.time()
+        with self.lock:
+            for s, t, i in self.sessions[user]:
+                if s == session_id and now - t < self.timeout:
+                    return True
+            return False
+
+    def remove_session(self, user, session_id):
+        with self.lock:
+            self.sessions[user] = [(s, t, i) for s, t, i in self.sessions[user] if s != session_id]
+
+    def kick_all(self, user):
+        with self.lock:
+            self.sessions[user] = []
+
+    def get_sessions(self, user):
+        now = time.time()
+        with self.lock:
+            return [(s, t, i) for s, t, i in self.sessions[user] if now - t < self.timeout]
+
+
+rate_limiter = RateLimiter(max_requests=100, window_seconds=60)
+session_manager = SessionManager(max_sessions=5, session_timeout=7200)
 
 class LogBuffer:
     def __init__(self, max_size=500):
@@ -145,7 +215,55 @@ def create_webhook_app(bot_controller_instance):
     _bot_controller = bot_controller_instance
 
     flask_app = Flask(__name__, template_folder='templates', static_folder='static')
-    flask_app.config['SECRET_KEY'] = 'lolkek4eburek'
+    flask_app.config['SECRET_KEY'] = os.urandom(32).hex()
+    flask_app.config['SESSION_COOKIE_HTTPONLY'] = True
+    flask_app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    flask_app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=2)
+
+    BLOCKED_PATTERNS = [
+        r'\.\./', r'<script', r'javascript:', r'onerror=', r'onload=',
+        r'union\s+select', r'drop\s+table', r'insert\s+into', r'delete\s+from',
+        r'\x00', r'%00', r'eval\(', r'exec\('
+    ]
+
+    @flask_app.before_request
+    def security_checks():
+        ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+        if ip:
+            ip = ip.split(',')[0].strip()
+
+        if not rate_limiter.is_allowed(ip):
+            logger.warning(f"Rate limit exceeded for IP: {ip}")
+            abort(429)
+
+        if request.path.startswith('/static/'):
+            return
+
+        full_url = request.url.lower()
+        request_data = request.get_data(as_text=True).lower() if request.data else ''
+        
+        for pattern in BLOCKED_PATTERNS:
+            if re.search(pattern, full_url, re.IGNORECASE) or re.search(pattern, request_data, re.IGNORECASE):
+                logger.warning(f"Blocked malicious request from {ip}: {pattern}")
+                rate_limiter.block(ip, 600)
+                abort(403)
+
+        if 'logged_in' in session:
+            session_id = session.get('session_id')
+            user = session.get('username')
+            if session_id and user:
+                if not session_manager.is_valid(user, session_id):
+                    session.clear()
+                    flash('Сессия истекла или была завершена.', 'warning')
+                    return redirect(url_for('login_page'))
+
+    @flask_app.after_request
+    def add_security_headers(response):
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'DENY'
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        return response
 
     def get_setup_state():
         settings = get_all_settings()
@@ -189,9 +307,20 @@ def create_webhook_app(bot_controller_instance):
                 return redirect(url_for('setup_page'))
             return redirect(url_for('dashboard_page'))
         if request.method == 'POST':
+            ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+            if ip:
+                ip = ip.split(',')[0].strip()
+            
             if (request.form.get('username') == settings.get("panel_login") and
                 request.form.get('password') == settings.get("panel_password")):
                 session['logged_in'] = True
+                session['username'] = request.form.get('username')
+                session['session_id'] = hashlib.sha256(os.urandom(32)).hexdigest()
+                session['login_ip'] = ip
+                session.permanent = True
+                
+                session_manager.add_session(session['username'], session['session_id'], ip)
+                
                 setup_state = get_setup_state()
                 if setup_state["needs_setup"]:
                     return redirect(url_for('setup_page'))
@@ -202,9 +331,38 @@ def create_webhook_app(bot_controller_instance):
     @flask_app.route('/logout', methods=['POST'])
     @login_required
     def logout_page():
-        session.pop('logged_in', None)
+        user = session.get('username')
+        session_id = session.get('session_id')
+        if user and session_id:
+            session_manager.remove_session(user, session_id)
+        session.clear()
         flash('Вы успешно вышли.', 'success')
         return redirect(url_for('login_page'))
+
+    @flask_app.route('/api/sessions')
+    @login_required
+    def sessions_api():
+        user = session.get('username')
+        current_session = session.get('session_id')
+        sessions = session_manager.get_sessions(user)
+        result = []
+        for s, t, ip in sessions:
+            result.append({
+                'id': s[:8],
+                'ip': ip,
+                'time': datetime.fromtimestamp(t).strftime('%d.%m.%Y %H:%M'),
+                'current': s == current_session
+            })
+        return jsonify({'success': True, 'sessions': result})
+
+    @flask_app.route('/api/sessions/kick-all', methods=['POST'])
+    @login_required
+    def kick_all_sessions():
+        user = session.get('username')
+        current_session = session.get('session_id')
+        session_manager.kick_all(user)
+        session_manager.add_session(user, current_session, session.get('login_ip', ''))
+        return jsonify({'success': True, 'message': 'Все сессии завершены'})
 
     @flask_app.route('/setup', methods=['GET', 'POST'])
     @login_required
@@ -1206,5 +1364,21 @@ def create_webhook_app(bot_controller_instance):
         category = request.json.get('category') if request.json else None
         log_buffer.clear(category)
         return jsonify({'success': True})
+
+    @flask_app.route('/debug-settings')
+    @login_required
+    def debug_settings_page():
+        return render_template('debug_settings.html', 
+                               rate_limiter=rate_limiter,
+                               session_manager=session_manager,
+                               **get_common_template_data())
+
+    @flask_app.errorhandler(429)
+    def too_many_requests(e):
+        return jsonify({'error': 'Too many requests'}), 429
+
+    @flask_app.errorhandler(403)
+    def forbidden(e):
+        return jsonify({'error': 'Forbidden'}), 403
 
     return flask_app
