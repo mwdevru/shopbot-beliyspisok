@@ -128,7 +128,7 @@ MW VPN Reseller Bot — это полноценная платформа для 
 
 ### Что понадобится
 
-1. **VPS-сервер** — любой провайдер (Itgarage, Play2go и т.д.)
+1. **VPS-сервер** — любой провайдер (Рекомендуем IT-GARAGE или другие хостинги)
 2. **Домен** — для веб-панели и webhooks платёжных систем
 3. **API-ключ MW** — получите у [@mwvpnbot](https://t.me/mwvpnbot)
 4. **Telegram-бот** — создайте у [@BotFather](https://t.me/BotFather)
