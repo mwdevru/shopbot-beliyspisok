@@ -185,8 +185,8 @@ curl -sSL https://raw.githubusercontent.com/mwdevru/shopbot-beliyspisok/main/ins
 
 ### Platega
 
-1. Зарегистрируйтесь на [platega.ru](https://platega.ru)
-2. Создайте магазин и получите `Merchant ID` и `Secret Key`
+1. Оставьте заявку на [platega.ru](https://platega.ru)
+2. Создайте магазин через менеджера и получите `Merchant ID` и `Secret Key`
 3. Выберите метод оплаты: СБП QR / Карта / СБП по номеру
 4. Настройте webhook в личном кабинете
 
