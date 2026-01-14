@@ -223,8 +223,23 @@ def create_webhook_app(bot_controller_instance):
     BLOCKED_PATTERNS = [
         r'\.\./', r'<script', r'javascript:', r'onerror=', r'onload=',
         r'union\s+select', r'drop\s+table', r'insert\s+into', r'delete\s+from',
-        r'\x00', r'%00', r'eval\(', r'exec\('
+        r'\x00', r'%00', r'eval\(', r'exec\(', r'char\(', r'concat\(',
+        r'0x[0-9a-f]+', r'waitfor\s+delay', r'benchmark\(', r'sleep\(',
+        r'information_schema', r'sysobjects', r'syscolumns'
     ]
+
+    def sanitize_form_input(form_data):
+        sanitized = {}
+        for key, value in form_data.items():
+            if isinstance(value, str):
+                if len(value) > 50000:
+                    raise ValueError(f"Input too long: {key}")
+                for pattern in BLOCKED_PATTERNS:
+                    if re.search(pattern, value, re.IGNORECASE):
+                        logger.warning(f"Blocked malicious input in {key}: {value[:50]}")
+                        raise ValueError("Invalid input detected")
+            sanitized[key] = value
+        return sanitized
 
     @flask_app.before_request
     def security_checks():
@@ -245,6 +260,14 @@ def create_webhook_app(bot_controller_instance):
         for pattern in BLOCKED_PATTERNS:
             if re.search(pattern, full_url, re.IGNORECASE) or re.search(pattern, request_data, re.IGNORECASE):
                 logger.warning(f"Blocked malicious request from {ip}: {pattern}")
+                rate_limiter.block(ip, 600)
+                abort(403)
+
+        if request.method == 'POST' and request.form:
+            try:
+                sanitize_form_input(request.form)
+            except ValueError as e:
+                logger.warning(f"Blocked malicious form data from {ip}: {e}")
                 rate_limiter.block(ip, 600)
                 abort(403)
 

@@ -3,11 +3,37 @@ import aiosqlite
 import json
 import logging
 import os
+import re
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
 logger = logging.getLogger(__name__)
+
+SQL_INJECTION_PATTERNS = [
+    r"(\b(union|select|insert|update|delete|drop|create|alter|exec|execute|script|javascript)\b)",
+    r"(--|;|\/\*|\*\/|xp_|sp_)",
+    r"(\bor\b.*=.*|1\s*=\s*1|'\s*or\s*')",
+    r"(<script|javascript:|onerror=|onload=)",
+]
+
+def _sanitize_input(value: Any) -> Any:
+    if value is None:
+        return None
+    if isinstance(value, (int, float, bool)):
+        return value
+    if isinstance(value, str):
+        for pattern in SQL_INJECTION_PATTERNS:
+            if re.search(pattern, value, re.IGNORECASE):
+                logger.warning(f"Potential SQL injection attempt blocked: {value[:50]}")
+                raise ValueError("Invalid input detected")
+        if len(value) > 10000:
+            raise ValueError("Input too long")
+        return value
+    return value
+
+def _validate_params(*args) -> tuple:
+    return tuple(_sanitize_input(arg) for arg in args)
 
 DATA_DIR = Path(os.environ.get("DATA_DIR", "/app/project/data"))
 DB_FILE = DATA_DIR / "data.db"
@@ -34,6 +60,7 @@ def get_sync_conn() -> sqlite3.Connection:
         _sync_conn.execute("PRAGMA journal_mode=WAL")
         _sync_conn.execute("PRAGMA synchronous=FULL")
         _sync_conn.execute("PRAGMA busy_timeout=30000")
+        _sync_conn.set_trace_callback(lambda stmt: logger.debug(f"SQL: {stmt[:100]}"))
     return _sync_conn
 
 
@@ -210,6 +237,7 @@ def migrate_from_old_db():
 
 
 def get_setting(key: str) -> Optional[str]:
+    key = _sanitize_input(key)
     conn = get_sync_conn()
     cursor = conn.cursor()
     cursor.execute("SELECT value FROM bot_settings WHERE key = ?", (key,))
@@ -233,6 +261,7 @@ def get_all_settings() -> Dict[str, Any]:
 
 
 def update_setting(key: str, value: str):
+    key, value = _validate_params(key, value)
     conn = get_sync_conn()
     val = value if value else ""
     conn.execute("DELETE FROM bot_settings WHERE key = ?", (key,))
@@ -241,6 +270,8 @@ def update_setting(key: str, value: str):
 
 
 def get_user(telegram_id: int) -> Optional[Dict]:
+    if not isinstance(telegram_id, int):
+        raise ValueError("telegram_id must be integer")
     cursor = get_sync_conn().cursor()
     cursor.execute("SELECT * FROM users WHERE telegram_id = ?", (telegram_id,))
     row = cursor.fetchone()
@@ -254,6 +285,11 @@ def get_all_users() -> List[Dict]:
 
 
 def register_user_if_not_exists(telegram_id: int, username: str, referrer_id: Optional[int]):
+    if not isinstance(telegram_id, int):
+        raise ValueError("telegram_id must be integer")
+    username = _sanitize_input(username)
+    if referrer_id is not None and not isinstance(referrer_id, int):
+        raise ValueError("referrer_id must be integer or None")
     conn = get_sync_conn()
     cursor = conn.cursor()
     cursor.execute("SELECT telegram_id FROM users WHERE telegram_id = ?", (telegram_id,))
@@ -368,6 +404,9 @@ def get_all_keys() -> List[Dict]:
 
 
 def add_new_key(user_id: int, subscription_link: str, expiry_timestamp_ms: int, subscription_uuid: str = None) -> Optional[int]:
+    if not isinstance(user_id, int) or not isinstance(expiry_timestamp_ms, int):
+        raise ValueError("Invalid key parameters")
+    subscription_link, subscription_uuid = _validate_params(subscription_link, subscription_uuid)
     conn = get_sync_conn()
     cursor = conn.cursor()
     expiry_date = datetime.fromtimestamp(expiry_timestamp_ms / 1000)
@@ -440,6 +479,9 @@ def get_plan_by_id(plan_id: int) -> Optional[Dict]:
 
 
 def create_plan(plan_name: str, days: int, price: float):
+    plan_name = _sanitize_input(plan_name)
+    if not isinstance(days, int) or not isinstance(price, (int, float)):
+        raise ValueError("Invalid plan parameters")
     conn = get_sync_conn()
     conn.execute("INSERT INTO plans (plan_name, days, price) VALUES (?, ?, ?)", (plan_name, days, price))
     conn.commit()
@@ -454,6 +496,11 @@ def delete_plan(plan_id: int):
 def log_transaction(username: str, transaction_id: Optional[str], payment_id: Optional[str], user_id: int,
                     status: str, amount_rub: float, amount_currency: Optional[float], currency_name: Optional[str],
                     payment_method: str, metadata: str):
+    username, transaction_id, payment_id, status, currency_name, payment_method = _validate_params(
+        username, transaction_id, payment_id, status, currency_name, payment_method
+    )
+    if not isinstance(user_id, int):
+        raise ValueError("user_id must be integer")
     conn = get_sync_conn()
     conn.execute("""INSERT INTO transactions (username, payment_id, user_id, status, amount_rub, 
                     amount_currency, currency_name, payment_method, metadata, created_date)
@@ -679,6 +726,9 @@ def get_daily_stats_for_charts(days: int = 30) -> Dict:
 
 
 def search_users(query: str) -> List[Dict]:
+    query = _sanitize_input(query)
+    if len(query) > 100:
+        raise ValueError("Search query too long")
     cursor = get_sync_conn().cursor()
     pattern = f"%{query}%"
     cursor.execute("""SELECT * FROM users WHERE username LIKE ? OR CAST(telegram_id AS TEXT) LIKE ?
