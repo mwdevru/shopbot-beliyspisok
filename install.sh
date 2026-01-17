@@ -147,28 +147,28 @@ auto_fix_error() {
         return 0
     fi
     
-    if echo "$error" | grep -qi "Failed to fetch\|Unable to connect"; then
+    if echo "$error" | grep -qi "Failed to fetch\|Unable to connect\|Could not resolve\|Temporary failure"; then
         echo "  Проблема с сетью, смена зеркала..."
-        sudo sed -i 's/archive.ubuntu.com/mirror.yandex.ru\/ubuntu/g' /etc/apt/sources.list 2>/dev/null || true
+        sudo sed -i.bak 's/archive.ubuntu.com/mirror.yandex.ru\/ubuntu/g' /etc/apt/sources.list 2>/dev/null || true
         sudo apt-get update -qq 2>/dev/null || true
         return 0
     fi
     
-    if echo "$error" | grep -qi "docker.*not running"; then
+    if echo "$error" | grep -qi "docker.*not running\|Cannot connect to the Docker daemon"; then
         echo "  Перезапуск Docker..."
         sudo systemctl restart docker
         sleep 5
         return 0
     fi
     
-    if echo "$error" | grep -qi "nginx.*failed"; then
+    if echo "$error" | grep -qi "nginx.*failed\|nginx.*error"; then
         echo "  Проверка конфигурации Nginx..."
         sudo nginx -t 2>&1 | tail -5
         sudo systemctl restart nginx 2>/dev/null || true
         return 0
     fi
     
-    if echo "$error" | grep -qi "port.*already in use"; then
+    if echo "$error" | grep -qi "port.*already in use\|address already in use"; then
         echo "  Освобождение занятого порта..."
         local port=$(echo "$error" | grep -oP '\d+' | head -1)
         if [ -n "$port" ]; then
@@ -183,6 +183,47 @@ auto_fix_error() {
         sudo docker system prune -af --volumes 2>/dev/null || true
         sudo apt-get clean 2>/dev/null || true
         sudo journalctl --vacuum-time=3d 2>/dev/null || true
+        return 0
+    fi
+    
+    if echo "$error" | grep -qi "fatal: not a git repository\|fatal: destination path.*already exists"; then
+        echo "  Исправление Git репозитория..."
+        if [ -d "$PROJECT_DIR" ]; then
+            cd ..
+            sudo rm -rf "$PROJECT_DIR"
+        fi
+        return 0
+    fi
+    
+    if echo "$error" | grep -qi "Permission denied\|Operation not permitted"; then
+        echo "  Исправление прав доступа..."
+        if [ -d "$PROJECT_DIR" ]; then
+            sudo chown -R $USER:$USER "$PROJECT_DIR" 2>/dev/null || true
+        fi
+        return 0
+    fi
+    
+    if echo "$error" | grep -qi "certbot.*failed\|Challenge failed\|Timeout during connect"; then
+        echo "  Проблема с получением SSL..."
+        echo "  Проверьте DNS записи для домена"
+        sudo systemctl restart nginx 2>/dev/null || true
+        sleep 3
+        return 0
+    fi
+    
+    if echo "$error" | grep -qi "docker-compose.*not found\|docker-compose: command not found"; then
+        echo "  Переустановка docker-compose..."
+        sudo rm -f /usr/local/bin/docker-compose 2>/dev/null || true
+        sudo curl -sL "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+        sudo chmod +x /usr/local/bin/docker-compose
+        return 0
+    fi
+    
+    if echo "$error" | grep -qi "No such file or directory"; then
+        echo "  Восстановление отсутствующих файлов..."
+        if [ ! -d "$PROJECT_DIR" ]; then
+            git clone --depth 1 $REPO_URL 2>/dev/null || true
+        fi
         return 0
     fi
     
@@ -266,11 +307,25 @@ check_system() {
     local free_space=$(df / | awk 'NR==2 {print $4}')
     if [ "$free_space" -lt 2097152 ]; then
         echo -e "${YELLOW}⚠ Предупреждение: Мало места на диске (< 2GB)${NC}"
+        echo -e "${YELLOW}Попытка очистки...${NC}"
+        sudo apt-get autoremove -y -qq 2>/dev/null || true
+        sudo apt-get clean 2>/dev/null || true
+        sudo docker system prune -af 2>/dev/null || true
     fi
     
     if ! ping -c 1 8.8.8.8 &>/dev/null; then
-        echo -e "${RED}${CROSS} Нет подключения к интернету${NC}"
-        exit 1
+        echo -e "${YELLOW}⚠ Проблема с подключением к интернету${NC}"
+        echo -e "${YELLOW}Проверяем альтернативные DNS...${NC}"
+        if ! ping -c 1 1.1.1.1 &>/dev/null; then
+            echo -e "${RED}${CROSS} Нет подключения к интернету${NC}"
+            exit 1
+        fi
+    fi
+    
+    if [ -f "$NGINX_CONF_FILE" ] && [ ! -d "$PROJECT_DIR" ]; then
+        echo -e "${YELLOW}⚠ Обнаружена сломанная установка${NC}"
+        echo -e "${YELLOW}Будет выполнено восстановление...${NC}\n"
+        sleep 2
     fi
 }
 
@@ -345,16 +400,35 @@ if [ -f "$NGINX_CONF_FILE" ] && [ "$CURRENT_STEP" == "start" ]; then
     echo -e "${YELLOW}Обнаружена существующая установка. Режим: ${BOLD}ОБНОВЛЕНИЕ${NC}"
     
     if [ ! -d "$PROJECT_DIR" ]; then
-        echo -e "${RED}${CROSS} Папка проекта '${PROJECT_DIR}' не найдена!${NC}"
-        echo -e "${YELLOW}Запустите полную установку.${NC}"
-        exit 1
+        echo -e "${YELLOW}⚠ Папка проекта '${PROJECT_DIR}' не найдена!${NC}"
+        echo -e "${YELLOW}Восстанавливаем проект...${NC}\n"
+        
+        step_header "Восстановление проекта"
+        run_silent "Клонирование репозитория" 3 git clone --depth 1 $REPO_URL
+        
+        if [ ! -d "$PROJECT_DIR" ]; then
+            echo -e "${RED}${CROSS} Не удалось восстановить проект${NC}"
+            echo -e "${YELLOW}Попробуйте:${NC}"
+            echo -e "  1. Проверьте интернет: ping github.com"
+            echo -e "  2. Удалите конфиг: sudo rm $NGINX_CONF_FILE"
+            echo -e "  3. Запустите скрипт снова для полной установки"
+            exit 1
+        fi
     fi
 
     cd $PROJECT_DIR
     save_state "update_started"
 
     step_header "Обновление кода"
-    run_silent "Получение обновлений из Git" 3 bash -c 'git fetch --all && git reset --hard origin/main && git pull'
+    if [ -d ".git" ]; then
+        run_silent "Получение обновлений из Git" 3 bash -c 'git fetch --all && git reset --hard origin/main && git pull'
+    else
+        echo -e "  ${YELLOW}⚠ Git репозиторий повреждён, переклонирование...${NC}"
+        cd ..
+        sudo rm -rf "$PROJECT_DIR"
+        run_silent "Клонирование репозитория" 3 git clone --depth 1 $REPO_URL
+        cd $PROJECT_DIR
+    fi
     save_state "code_updated"
 
     step_header "Проверка конфигурации"
@@ -364,8 +438,12 @@ if [ -f "$NGINX_CONF_FILE" ] && [ "$CURRENT_STEP" == "start" ]; then
         echo -e "  ${GREEN}${CHECK}${NC} Nginx конфиг актуален"
     fi
     sudo mkdir -p /var/www/html 2>/dev/null || true
-    sudo cp -f src/shop_bot/webhook_server/static/502.html /var/www/html/502.html 2>/dev/null || true
-    echo -e "  ${GREEN}${CHECK}${NC} Страница 502 обновлена"
+    if [ -f "src/shop_bot/webhook_server/static/502.html" ]; then
+        sudo cp -f src/shop_bot/webhook_server/static/502.html /var/www/html/502.html
+        echo -e "  ${GREEN}${CHECK}${NC} Страница 502 обновлена"
+    else
+        echo -e "  ${YELLOW}⚠ Файл 502.html не найден, пропускаем${NC}"
+    fi
     save_state "config_updated"
 
     step_header "Перезапуск сервисов"
