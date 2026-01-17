@@ -67,7 +67,7 @@ get_state_step() {
 
 get_state_data() {
     local key=$1
-    load_state | grep -oP "\"$key\":\s*\"\K[^\"]+\" || echo ""
+    load_state | grep -oP "\"$key\":\s*\"\K[^\"]+\"" || echo ""
 }
 
 clear_state() {
