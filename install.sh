@@ -295,7 +295,13 @@ NGINX_CONF_FILE="/etc/nginx/sites-available/${PROJECT_DIR}.conf"
 
 check_system() {
     if [ "$EUID" -eq 0 ]; then
-        echo -e "${RED}${CROSS} Не запускайте скрипт от root. Используйте sudo внутри.${NC}"
+        echo -e "${RED}${CROSS} Скрипт запущен от root!${NC}"
+        echo -e "${YELLOW}Правильный способ запуска:${NC}"
+        echo -e "  ${CYAN}bash -c \"\$(curl -sSL https://raw.githubusercontent.com/mwdevru/shopbot-beliyspisok/main/install.sh)\"${NC}"
+        echo -e ""
+        echo -e "${YELLOW}ИЛИ локально:${NC}"
+        echo -e "  ${CYAN}bash install.sh${NC}"
+        echo -e ""
         exit 1
     fi
     

@@ -137,10 +137,15 @@ MW VPN Reseller Bot — это полноценная платформа для 
 
 ```bash
 # Подключитесь к серверу
-ssh root@your-server-ip
+ssh your-user@your-server-ip
 
 # Запустите установщик (всё сделает автоматически)
-curl -sSL https://raw.githubusercontent.com/mwdevru/shopbot-beliyspisok/main/install.sh | sudo bash
+bash -c "$(curl -sSL https://raw.githubusercontent.com/mwdevru/shopbot-beliyspisok/main/install.sh)"
+```
+
+Или локально в директории проекта:
+```bash
+bash install.sh
 ```
 
 Установщик автоматически:
