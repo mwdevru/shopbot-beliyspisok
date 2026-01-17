@@ -302,6 +302,8 @@ check_system() {
         echo -e "${YELLOW}ИЛИ локально:${NC}"
         echo -e "  ${CYAN}bash install.sh${NC}"
         echo -e ""
+        echo -e "${YELLOW}Очищаю сохранённое состояние...${NC}"
+        rm -f "$STATE_FILE" "$LOCK_FILE" 2>/dev/null || true
         exit 1
     fi
     
