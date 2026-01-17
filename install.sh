@@ -13,7 +13,7 @@ CHECK="✔"
 CROSS="✖"
 ARROW="➜"
 
-set -euo pipefail
+set -uo pipefail
 
 LOG_FILE=$(mktemp)
 STATE_FILE="/tmp/shopbot_install_state.json"
@@ -23,11 +23,13 @@ trap cleanup EXIT INT TERM
 
 cleanup() {
     local exit_code=$?
-    rm -f "$LOG_FILE" "$LOCK_FILE" "$STATE_FILE"
+    rm -f "$LOG_FILE" "$LOCK_FILE" "$STATE_FILE" 2>/dev/null || true
     tput cnorm 2>/dev/null || true
-    if [ $exit_code -ne 0 ]; then
+    if [ $exit_code -ne 0 ] && [ $exit_code -ne 130 ]; then
         echo -e "\n${RED}${CROSS} Установка прервана. Состояние сохранено.${NC}"
         echo -e "${YELLOW}Запустите скрипт снова для продолжения.${NC}"
+    elif [ $exit_code -eq 130 ]; then
+        echo -e "\n${RED}${CROSS} Установка отменена пользователем (Ctrl+C).${NC}"
     fi
     exit $exit_code
 }
@@ -280,7 +282,7 @@ run_docker() {
     fi
     
     if [ "$(sudo docker-compose ps -q 2>/dev/null)" ]; then
-        run_silent "Остановка старых контейнеров" 2 sudo docker-compose down --remove-orphans
+        run_silent "Остановка старых контейнеров" 2 sudo docker-compose down --remove-orphans || true
     fi
     
     run_silent "Сборка и запуск контейнеров" 3 bash -c "
@@ -288,7 +290,7 @@ run_docker() {
         sudo docker-compose up -d &&
         sleep 5 &&
         sudo docker-compose ps | grep -q \"Up\"
-    "
+    " || true
 }
 
 REPO_URL="https://github.com/mwdevru/shopbot-beliyspisok.git"
@@ -469,7 +471,7 @@ if [ "$CURRENT_STEP" == "start" ] || [ "$CURRENT_STEP" == "dependencies" ]; then
             run_silent "Установка $pkg" 3 bash -c "
                 sudo apt-get update -qq 2>&1 | grep -v 'stable CLI interface' || true &&
                 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \"$pkg\"
-            "
+            " || echo -e "  ${YELLOW}⚠ Ошибка при установке $pkg, продолжаем...${NC}"
         else
             echo -e "  ${GREEN}${CHECK}${NC} $cmd уже установлен"
         fi
@@ -584,7 +586,7 @@ if [ "$CURRENT_STEP" == "start" ] || [ "$CURRENT_STEP" == "nginx_done" ] || [ "$
     else
         run_silent "Получение сертификата Let's Encrypt" 3 bash -c "
             sudo certbot --nginx -d $DOMAIN --email $EMAIL --agree-tos --non-interactive --redirect --max-log-backups 0
-        "
+        " || true
     fi
 
     if [ ! -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
@@ -593,9 +595,10 @@ if [ "$CURRENT_STEP" == "start" ] || [ "$CURRENT_STEP" == "nginx_done" ] || [ "$
         echo -e "  1. Домен $DOMAIN указывает на этот сервер"
         echo -e "  2. Порты 80 и 443 открыты"
         echo -e "  3. DNS записи обновлены"
-        exit 1
+        echo -e "\n${YELLOW}Продолжаю установку без SSL...${NC}"
+    else
+        save_state "ssl_done"
     fi
-    save_state "ssl_done"
 fi
 
 if [ "$CURRENT_STEP" == "start" ] || [ "$CURRENT_STEP" == "ssl_done" ] || [ "$CURRENT_STEP" == "final_config" ]; then
