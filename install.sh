@@ -489,7 +489,8 @@ if [ "$CURRENT_STEP" == "start" ] || [ "$CURRENT_STEP" == "dependencies" ]; then
     install_package "docker" "docker.io"
     install_package "nginx" "nginx"
     install_package "curl" "curl"
-    install_package "certbot" "certbot python3-certbot-nginx"
+    install_package "certbot" "certbot"
+    install_package "certbot-nginx" "python3-certbot-nginx"
     install_docker_compose
 
     for service in docker nginx; do
