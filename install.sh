@@ -471,7 +471,7 @@ if [ "$CURRENT_STEP" == "start" ] || [ "$CURRENT_STEP" == "dependencies" ]; then
                 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \"$pkg\"
             "
         else
-            echo -e \"  \${GREEN}\${CHECK}\${NC} \$cmd уже установлен\"
+            echo -e "  ${GREEN}${CHECK}${NC} $cmd уже установлен"
         fi
     }
 
