@@ -259,11 +259,11 @@ read_input() {
 
 install_docker_compose() {
     if ! command -v docker-compose &> /dev/null; then
-        run_silent "Установка docker-compose" 3 bash -c '
-            sudo curl -sL "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose && 
+        run_silent "Установка docker-compose" 3 bash -c "
+            sudo curl -sL \"https://github.com/docker/compose/releases/latest/download/docker-compose-\$(uname -s)-\$(uname -m)\" -o /usr/local/bin/docker-compose && 
             sudo chmod +x /usr/local/bin/docker-compose &&
             docker-compose --version
-        '
+        "
     fi
 }
 
@@ -281,12 +281,12 @@ run_docker() {
         run_silent "Остановка старых контейнеров" 2 sudo docker-compose down --remove-orphans
     fi
     
-    run_silent "Сборка и запуск контейнеров" 3 bash -c '
+    run_silent "Сборка и запуск контейнеров" 3 bash -c "
         sudo docker-compose build --no-cache &&
         sudo docker-compose up -d &&
         sleep 5 &&
-        sudo docker-compose ps | grep -q "Up"
-    '
+        sudo docker-compose ps | grep -q \"Up\"
+    "
 }
 
 REPO_URL="https://github.com/mwdevru/shopbot-beliyspisok.git"
@@ -471,10 +471,10 @@ if [ "$CURRENT_STEP" == "start" ] || [ "$CURRENT_STEP" == "dependencies" ]; then
         if ! command -v $cmd &> /dev/null; then
             run_silent "Установка $pkg" 3 bash -c "
                 sudo apt-get update -qq 2>&1 | grep -v 'stable CLI interface' || true &&
-                sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $pkg
+                sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \"$pkg\"
             "
         else
-            echo -e "  ${GREEN}${CHECK}${NC} $cmd уже установлен"
+            echo -e \"  \${GREEN}\${CHECK}\${NC} \$cmd уже установлен\"
         fi
     }
 
