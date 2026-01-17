@@ -1,5 +1,7 @@
 #!/bin/bash
 
+rm -f /tmp/shopbot_install_state.json 2>/dev/null || true
+
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
@@ -21,7 +23,7 @@ trap cleanup EXIT INT TERM
 
 cleanup() {
     local exit_code=$?
-    rm -f "$LOG_FILE" "$LOCK_FILE"
+    rm -f "$LOG_FILE" "$LOCK_FILE" "$STATE_FILE"
     tput cnorm 2>/dev/null || true
     if [ $exit_code -ne 0 ]; then
         echo -e "\n${RED}${CROSS} Установка прервана. Состояние сохранено.${NC}"
