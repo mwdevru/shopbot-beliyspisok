@@ -2,6 +2,13 @@
 
 rm -f /tmp/shopbot_install_state.json 2>/dev/null || true
 
+sudo pkill -9 apt-get 2>/dev/null || true
+sudo pkill -9 apt 2>/dev/null || true
+sudo rm -f /var/lib/apt/lists/lock 2>/dev/null || true
+sudo rm -f /var/cache/apt/archives/lock 2>/dev/null || true
+sudo rm -f /var/lib/dpkg/lock* 2>/dev/null || true
+sudo dpkg --configure -a 2>/dev/null || true
+
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
@@ -475,11 +482,25 @@ if [ "$CURRENT_STEP" == "start" ] || [ "$CURRENT_STEP" == "dependencies" ]; then
     install_package() {
         local cmd=$1
         local pkg=$2
+        
         if ! command -v $cmd &> /dev/null; then
-            run_silent "Установка $pkg" 3 bash -c "
-                sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq 2>&1 | grep -v 'stable CLI interface' || true &&
-                sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq -o Dpkg::Use-Pty=0 \"$pkg\"
-            " || echo -e "  ${YELLOW}⚠ Ошибка при установке $pkg, продолжаем...${NC}"
+            echo -e "  ⠋ Установка $pkg..."
+            
+            sudo pkill -9 apt-get 2>/dev/null || true
+            sudo pkill -9 apt 2>/dev/null || true
+            sudo rm -f /var/lib/dpkg/lock* 2>/dev/null || true
+            sudo dpkg --configure -a 2>/dev/null || true
+            sleep 2
+            
+            if sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq 2>&1 | grep -v 'stable CLI interface' >/dev/null 2>&1; then
+                if sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq -o Dpkg::Use-Pty=0 "$pkg" 2>&1 | grep -q "done\|Setting up"; then
+                    echo -e "\r  ${GREEN}${CHECK}${NC} $pkg установлен             "
+                else
+                    echo -e "\r  ${YELLOW}⚠${NC} Проблема с $pkg, продолжаем...   "
+                fi
+            else
+                echo -e "\r  ${YELLOW}⚠${NC} Не удалось обновить apt, продолжаем... "
+            fi
         else
             echo -e "  ${GREEN}${CHECK}${NC} $cmd уже установлен"
         fi
