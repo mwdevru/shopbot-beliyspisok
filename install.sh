@@ -294,19 +294,6 @@ PROJECT_DIR="shopbot-beliyspisok"
 NGINX_CONF_FILE="/etc/nginx/sites-available/${PROJECT_DIR}.conf"
 
 check_system() {
-    if [ "$EUID" -eq 0 ]; then
-        echo -e "${RED}${CROSS} Скрипт запущен от root!${NC}"
-        echo -e "${YELLOW}Правильный способ запуска:${NC}"
-        echo -e "  ${CYAN}bash -c \"\$(curl -sSL https://raw.githubusercontent.com/mwdevru/shopbot-beliyspisok/main/install.sh)\"${NC}"
-        echo -e ""
-        echo -e "${YELLOW}ИЛИ локально:${NC}"
-        echo -e "  ${CYAN}bash install.sh${NC}"
-        echo -e ""
-        echo -e "${YELLOW}Очищаю сохранённое состояние...${NC}"
-        rm -f "$STATE_FILE" "$LOCK_FILE" 2>/dev/null || true
-        exit 1
-    fi
-    
     if ! command -v sudo &> /dev/null; then
         echo -e "${RED}${CROSS} sudo не установлен${NC}"
         exit 1
