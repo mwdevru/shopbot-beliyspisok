@@ -11,10 +11,68 @@ CHECK="✔"
 CROSS="✖"
 ARROW="➜"
 
-set -e
+set -euo pipefail
 
 LOG_FILE=$(mktemp)
-trap "rm -f $LOG_FILE" EXIT
+STATE_FILE="/tmp/shopbot_install_state.json"
+LOCK_FILE="/tmp/shopbot_install.lock"
+
+trap cleanup EXIT INT TERM
+
+cleanup() {
+    local exit_code=$?
+    rm -f "$LOG_FILE" "$LOCK_FILE"
+    tput cnorm 2>/dev/null || true
+    if [ $exit_code -ne 0 ]; then
+        echo -e "\n${RED}${CROSS} Установка прервана. Состояние сохранено.${NC}"
+        echo -e "${YELLOW}Запустите скрипт снова для продолжения.${NC}"
+    fi
+    exit $exit_code
+}
+
+acquire_lock() {
+    if [ -f "$LOCK_FILE" ]; then
+        local pid=$(cat "$LOCK_FILE" 2>/dev/null || echo "")
+        if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+            echo -e "${RED}${CROSS} Установка уже запущена (PID: $pid)${NC}"
+            exit 1
+        fi
+    fi
+    echo $$ > "$LOCK_FILE"
+}
+
+save_state() {
+    local step=$1
+    local data=${2:-"{}"}
+    cat > "$STATE_FILE" <<EOF
+{
+    "step": "$step",
+    "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+    "data": $data
+}
+EOF
+}
+
+load_state() {
+    if [ -f "$STATE_FILE" ]; then
+        cat "$STATE_FILE"
+    else
+        echo '{"step":"start","data":{}}'
+    fi
+}
+
+get_state_step() {
+    load_state | grep -oP '"step":\s*"\K[^"]+' || echo "start"
+}
+
+get_state_data() {
+    local key=$1
+    load_state | grep -oP "\"$key\":\s*\"\K[^\"]+\" || echo ""
+}
+
+clear_state() {
+    rm -f "$STATE_FILE"
+}
 
 spinner() {
     local pid=$1
@@ -22,35 +80,113 @@ spinner() {
     local spin='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
     local i=0
     
-    tput civis
+    tput civis 2>/dev/null || true
     while kill -0 $pid 2>/dev/null; do
         i=$(( (i+1) % 10 ))
         printf "\r  ${CYAN}${spin:$i:1}${NC} %s..." "$msg"
         sleep 0.1
     done
-    tput cnorm
+    tput cnorm 2>/dev/null || true
 }
 
 run_silent() {
     local msg=$1
-    shift
+    local max_retries=${2:-3}
+    shift 2
     
-    "$@" > "$LOG_FILE" 2>&1 &
-    local pid=$!
+    local attempt=1
+    while [ $attempt -le $max_retries ]; do
+        "$@" > "$LOG_FILE" 2>&1 &
+        local pid=$!
+        
+        spinner $pid "$msg"
+        
+        wait $pid
+        local exit_code=$?
+        
+        if [ $exit_code -eq 0 ]; then
+            printf "\r  ${GREEN}${CHECK}${NC} %s\n" "$msg"
+            return 0
+        else
+            if [ $attempt -lt $max_retries ]; then
+                printf "\r  ${YELLOW}⚠${NC} %s (попытка %d/%d)\n" "$msg" "$attempt" "$max_retries"
+                sleep 2
+                attempt=$((attempt + 1))
+            else
+                printf "\r  ${RED}${CROSS}${NC} %s\n" "$msg"
+                echo -e "\n${RED}Ошибка после $max_retries попыток:${NC}"
+                cat "$LOG_FILE"
+                
+                echo -e "\n${YELLOW}Попытка автоматического исправления...${NC}"
+                if auto_fix_error "$@"; then
+                    printf "  ${GREEN}${CHECK}${NC} Проблема исправлена\n"
+                    return 0
+                fi
+                return $exit_code
+            fi
+        fi
+    done
+}
+
+auto_fix_error() {
+    local cmd="$*"
+    local error=$(cat "$LOG_FILE")
     
-    spinner $pid "$msg"
-    
-    wait $pid
-    local exit_code=$?
-    
-    if [ $exit_code -eq 0 ]; then
-        printf "\r  ${GREEN}${CHECK}${NC} %s\n" "$msg"
-    else
-        printf "\r  ${RED}${CROSS}${NC} %s\n" "$msg"
-        echo -e "\n${RED}Ошибка:${NC}"
-        cat "$LOG_FILE"
-        return $exit_code
+    if echo "$error" | grep -qi "dpkg.*lock"; then
+        echo "  Обнаружена блокировка dpkg, ожидание..."
+        sudo rm -f /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/cache/apt/archives/lock 2>/dev/null || true
+        sudo dpkg --configure -a 2>/dev/null || true
+        sleep 3
+        return 0
     fi
+    
+    if echo "$error" | grep -qi "Could not get lock"; then
+        echo "  Ожидание освобождения apt..."
+        sudo killall apt apt-get 2>/dev/null || true
+        sleep 5
+        return 0
+    fi
+    
+    if echo "$error" | grep -qi "Failed to fetch\|Unable to connect"; then
+        echo "  Проблема с сетью, смена зеркала..."
+        sudo sed -i 's/archive.ubuntu.com/mirror.yandex.ru\/ubuntu/g' /etc/apt/sources.list 2>/dev/null || true
+        sudo apt-get update -qq 2>/dev/null || true
+        return 0
+    fi
+    
+    if echo "$error" | grep -qi "docker.*not running"; then
+        echo "  Перезапуск Docker..."
+        sudo systemctl restart docker
+        sleep 5
+        return 0
+    fi
+    
+    if echo "$error" | grep -qi "nginx.*failed"; then
+        echo "  Проверка конфигурации Nginx..."
+        sudo nginx -t 2>&1 | tail -5
+        sudo systemctl restart nginx 2>/dev/null || true
+        return 0
+    fi
+    
+    if echo "$error" | grep -qi "port.*already in use"; then
+        echo "  Освобождение занятого порта..."
+        local port=$(echo "$error" | grep -oP '\d+' | head -1)
+        if [ -n "$port" ]; then
+            sudo fuser -k ${port}/tcp 2>/dev/null || true
+            sleep 2
+            return 0
+        fi
+    fi
+    
+    if echo "$error" | grep -qi "disk.*full\|No space left"; then
+        echo "  Очистка диска..."
+        sudo docker system prune -af --volumes 2>/dev/null || true
+        sudo apt-get clean 2>/dev/null || true
+        sudo journalctl --vacuum-time=3d 2>/dev/null || true
+        return 0
+    fi
+    
+    return 1
 }
 
 step_header() {
@@ -58,12 +194,35 @@ step_header() {
 }
 
 read_input() {
-    read -p "$1" "$2" < /dev/tty
+    local prompt=$1
+    local var_name=$2
+    local saved_value=$(get_state_data "$var_name")
+    
+    if [ -n "$saved_value" ]; then
+        echo -e "  ${GREEN}Используется сохранённое значение: ${BOLD}${saved_value}${NC}"
+        eval "$var_name='$saved_value'"
+        return 0
+    fi
+    
+    local value=""
+    while [ -z "$value" ]; do
+        read -p "$prompt" value < /dev/tty || true
+        if [ -z "$value" ]; then
+            echo -e "  ${RED}${CROSS} Значение не может быть пустым. Попробуйте снова.${NC}"
+        fi
+    done
+    
+    eval "$var_name='$value'"
+    save_state "input_$var_name" "{\"$var_name\":\"$value\"}"
 }
 
 install_docker_compose() {
     if ! command -v docker-compose &> /dev/null; then
-        run_silent "Установка docker-compose" bash -c 'sudo curl -sL "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose && sudo chmod +x /usr/local/bin/docker-compose'
+        run_silent "Установка docker-compose" 3 bash -c '
+            sudo curl -sL "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose && 
+            sudo chmod +x /usr/local/bin/docker-compose &&
+            docker-compose --version
+        '
     fi
 }
 
@@ -72,15 +231,50 @@ run_docker() {
         install_docker_compose
     fi
     
-    if [ "$(sudo docker-compose ps -q 2>/dev/null)" ]; then
-        run_silent "Остановка старых контейнеров" sudo docker-compose down --remove-orphans
+    if ! sudo systemctl is-active --quiet docker; then
+        run_silent "Запуск Docker" 2 sudo systemctl start docker
+        sleep 3
     fi
-    run_silent "Сборка и запуск контейнеров" sudo docker-compose up -d --build
+    
+    if [ "$(sudo docker-compose ps -q 2>/dev/null)" ]; then
+        run_silent "Остановка старых контейнеров" 2 sudo docker-compose down --remove-orphans
+    fi
+    
+    run_silent "Сборка и запуск контейнеров" 3 bash -c '
+        sudo docker-compose build --no-cache &&
+        sudo docker-compose up -d &&
+        sleep 5 &&
+        sudo docker-compose ps | grep -q "Up"
+    '
 }
 
 REPO_URL="https://github.com/mwdevru/shopbot-beliyspisok.git"
 PROJECT_DIR="shopbot-beliyspisok"
 NGINX_CONF_FILE="/etc/nginx/sites-available/${PROJECT_DIR}.conf"
+
+check_system() {
+    if [ "$EUID" -eq 0 ]; then
+        echo -e "${RED}${CROSS} Не запускайте скрипт от root. Используйте sudo внутри.${NC}"
+        exit 1
+    fi
+    
+    if ! command -v sudo &> /dev/null; then
+        echo -e "${RED}${CROSS} sudo не установлен${NC}"
+        exit 1
+    fi
+    
+    local free_space=$(df / | awk 'NR==2 {print $4}')
+    if [ "$free_space" -lt 2097152 ]; then
+        echo -e "${YELLOW}⚠ Предупреждение: Мало места на диске (< 2GB)${NC}"
+    fi
+    
+    if ! ping -c 1 8.8.8.8 &>/dev/null; then
+        echo -e "${RED}${CROSS} Нет подключения к интернету${NC}"
+        exit 1
+    fi
+}
+
+acquire_lock
 
 clear
 echo ""
@@ -88,6 +282,15 @@ echo -e "${BOLD}${GREEN}╔═════════════════�
 echo -e "${BOLD}${GREEN}║       🤖 VPN Reseller Bot - Установщик             ║${NC}"
 echo -e "${BOLD}${GREEN}╚════════════════════════════════════════════════════╝${NC}"
 echo ""
+
+check_system
+
+CURRENT_STEP=$(get_state_step)
+if [ "$CURRENT_STEP" != "start" ] && [ "$CURRENT_STEP" != "completed" ]; then
+    echo -e "${YELLOW}Обнаружена прерванная установка на этапе: ${BOLD}${CURRENT_STEP}${NC}"
+    echo -e "${YELLOW}Продолжаем с этого места...${NC}\n"
+    sleep 2
+fi
 
 update_nginx_config() {
     local domain=$(grep -oP 'server_name \K[^;]+' "$NGINX_CONF_FILE" | head -1)
@@ -138,18 +341,21 @@ NGINXEOF
     return 1
 }
 
-if [ -f "$NGINX_CONF_FILE" ]; then
+if [ -f "$NGINX_CONF_FILE" ] && [ "$CURRENT_STEP" == "start" ]; then
     echo -e "${YELLOW}Обнаружена существующая установка. Режим: ${BOLD}ОБНОВЛЕНИЕ${NC}"
     
     if [ ! -d "$PROJECT_DIR" ]; then
         echo -e "${RED}${CROSS} Папка проекта '${PROJECT_DIR}' не найдена!${NC}"
+        echo -e "${YELLOW}Запустите полную установку.${NC}"
         exit 1
     fi
 
     cd $PROJECT_DIR
+    save_state "update_started"
 
     step_header "Обновление кода"
-    run_silent "Получение обновлений из Git" git pull
+    run_silent "Получение обновлений из Git" 3 bash -c 'git fetch --all && git reset --hard origin/main && git pull'
+    save_state "code_updated"
 
     step_header "Проверка конфигурации"
     if update_nginx_config 2>/dev/null; then
@@ -157,11 +363,15 @@ if [ -f "$NGINX_CONF_FILE" ]; then
     else
         echo -e "  ${GREEN}${CHECK}${NC} Nginx конфиг актуален"
     fi
-    sudo cp -f src/shop_bot/webhook_server/static/502.html /var/www/html/502.html 2>/dev/null
+    sudo mkdir -p /var/www/html 2>/dev/null || true
+    sudo cp -f src/shop_bot/webhook_server/static/502.html /var/www/html/502.html 2>/dev/null || true
     echo -e "  ${GREEN}${CHECK}${NC} Страница 502 обновлена"
+    save_state "config_updated"
 
     step_header "Перезапуск сервисов"
     run_docker
+    save_state "completed"
+    clear_state
     
     echo ""
     echo -e "${BOLD}${GREEN}╔════════════════════════════════════════════════════╗${NC}"
@@ -173,62 +383,104 @@ fi
 
 echo -e "${YELLOW}Режим: ${BOLD}ПЕРВОНАЧАЛЬНАЯ УСТАНОВКА${NC}"
 
-step_header "Установка системных зависимостей"
+if [ "$CURRENT_STEP" == "start" ] || [ "$CURRENT_STEP" == "dependencies" ]; then
+    step_header "Установка системных зависимостей"
+    save_state "dependencies"
 
-install_package() {
-    local cmd=$1
-    local pkg=$2
-    if ! command -v $cmd &> /dev/null; then
-        run_silent "Установка $pkg" bash -c "sudo apt-get update -qq && sudo apt-get install -y -qq $pkg"
+    install_package() {
+        local cmd=$1
+        local pkg=$2
+        if ! command -v $cmd &> /dev/null; then
+            run_silent "Установка $pkg" 3 bash -c "
+                sudo apt-get update -qq 2>&1 | grep -v 'stable CLI interface' || true &&
+                sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $pkg
+            "
+        else
+            echo -e "  ${GREEN}${CHECK}${NC} $cmd уже установлен"
+        fi
+    }
+
+    install_package "git" "git"
+    install_package "docker" "docker.io"
+    install_package "nginx" "nginx"
+    install_package "curl" "curl"
+    install_package "certbot" "certbot python3-certbot-nginx"
+    install_docker_compose
+
+    for service in docker nginx; do
+        if ! sudo systemctl is-active --quiet $service; then
+            run_silent "Запуск $service" 2 bash -c "sudo systemctl start $service && sudo systemctl enable $service"
+        fi
+    done
+    save_state "dependencies_done"
+fi
+
+if [ "$CURRENT_STEP" == "start" ] || [ "$CURRENT_STEP" == "dependencies_done" ] || [ "$CURRENT_STEP" == "clone" ]; then
+    step_header "Подготовка проекта"
+    save_state "clone"
+    
+    if [ ! -d "$PROJECT_DIR" ]; then
+        run_silent "Клонирование репозитория" 3 git clone --depth 1 $REPO_URL
     else
-        echo -e "  ${GREEN}${CHECK}${NC} $cmd уже установлен"
+        echo -e "  ${GREEN}${CHECK}${NC} Репозиторий уже существует"
     fi
-}
-
-install_package "git" "git"
-install_package "docker" "docker.io"
-install_package "nginx" "nginx"
-install_package "curl" "curl"
-install_package "certbot" "certbot python3-certbot-nginx"
-install_docker_compose
-
-for service in docker nginx; do
-    if ! sudo systemctl is-active --quiet $service; then
-        run_silent "Запуск $service" bash -c "sudo systemctl start $service && sudo systemctl enable $service"
-    fi
-done
-
-step_header "Подготовка проекта"
-if [ ! -d "$PROJECT_DIR" ]; then
-    run_silent "Клонирование репозитория" git clone --quiet $REPO_URL
+    cd $PROJECT_DIR
+    save_state "clone_done"
 else
-    echo -e "  ${GREEN}${CHECK}${NC} Репозиторий уже существует"
-fi
-cd $PROJECT_DIR
-
-step_header "Настройка домена"
-echo ""
-read_input "  Введите домен (например: my-vpn-shop.com): " USER_INPUT_DOMAIN
-
-if [ -z "$USER_INPUT_DOMAIN" ]; then
-    echo -e "  ${RED}${CROSS} Домен не может быть пустым${NC}"
-    exit 1
+    cd $PROJECT_DIR 2>/dev/null || {
+        echo -e "${RED}${CROSS} Не могу найти директорию проекта${NC}"
+        clear_state
+        exit 1
+    }
 fi
 
-DOMAIN=$(echo "$USER_INPUT_DOMAIN" | sed -e 's%^https\?://%%' -e 's%/.*$%%')
-read_input "  Введите email (для SSL): " EMAIL
-echo -e "  ${GREEN}${CHECK}${NC} Домен: ${BOLD}${DOMAIN}${NC}"
-
-if command -v ufw &> /dev/null && sudo ufw status | grep -q 'Status: active'; then
-    run_silent "Настройка firewall" bash -c "sudo ufw allow 80/tcp && sudo ufw allow 443/tcp && sudo ufw allow 1488/tcp"
+if [ "$CURRENT_STEP" == "start" ] || [ "$CURRENT_STEP" == "clone_done" ] || [ "$CURRENT_STEP" == "domain" ]; then
+    step_header "Настройка домена"
+    save_state "domain"
+    echo ""
+    
+    read_input "  Введите домен (например: my-vpn-shop.com): " USER_INPUT_DOMAIN
+    DOMAIN=$(echo "$USER_INPUT_DOMAIN" | sed -e 's%^https\?://%%' -e 's%/.*$%%' -e 's/[^a-zA-Z0-9.-]//g')
+    
+    if [ -z "$DOMAIN" ]; then
+        echo -e "  ${RED}${CROSS} Некорректный домен${NC}"
+        exit 1
+    fi
+    
+    read_input "  Введите email (для SSL): " EMAIL
+    
+    if ! echo "$EMAIL" | grep -qE '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'; then
+        echo -e "  ${YELLOW}⚠ Некорректный email, но продолжаем...${NC}"
+    fi
+    
+    echo -e "  ${GREEN}${CHECK}${NC} Домен: ${BOLD}${DOMAIN}${NC}"
+    save_state "domain_done" "{\"DOMAIN\":\"$DOMAIN\",\"EMAIL\":\"$EMAIL\"}"
+else
+    DOMAIN=$(get_state_data "DOMAIN")
+    EMAIL=$(get_state_data "EMAIL")
+    echo -e "  ${GREEN}Используется домен: ${BOLD}${DOMAIN}${NC}"
 fi
 
-step_header "Настройка Nginx"
+if [ "$CURRENT_STEP" == "start" ] || [ "$CURRENT_STEP" == "domain_done" ] || [ "$CURRENT_STEP" == "firewall" ]; then
+    save_state "firewall"
+    if command -v ufw &> /dev/null && sudo ufw status | grep -q 'Status: active'; then
+        run_silent "Настройка firewall" 2 bash -c "
+            sudo ufw allow 80/tcp 2>/dev/null || true &&
+            sudo ufw allow 443/tcp 2>/dev/null || true &&
+            sudo ufw allow 1488/tcp 2>/dev/null || true
+        "
+    fi
+    save_state "firewall_done"
+fi
 
-NGINX_ENABLED_FILE="/etc/nginx/sites-enabled/${PROJECT_DIR}.conf"
-sudo rm -rf /etc/nginx/sites-enabled/default 2>/dev/null || true
+if [ "$CURRENT_STEP" == "start" ] || [ "$CURRENT_STEP" == "firewall_done" ] || [ "$CURRENT_STEP" == "nginx" ]; then
+    step_header "Настройка Nginx"
+    save_state "nginx"
 
-sudo bash -c "cat > $NGINX_CONF_FILE" <<EOF
+    NGINX_ENABLED_FILE="/etc/nginx/sites-enabled/${PROJECT_DIR}.conf"
+    sudo rm -rf /etc/nginx/sites-enabled/default 2>/dev/null || true
+
+    sudo bash -c "cat > $NGINX_CONF_FILE" <<EOF
 server {
     listen 80;
     listen [::]:80;
@@ -240,25 +492,41 @@ server {
 }
 EOF
 
-if [ ! -f "$NGINX_ENABLED_FILE" ]; then
-    sudo ln -s $NGINX_CONF_FILE $NGINX_ENABLED_FILE 2>/dev/null || true
+    if [ ! -f "$NGINX_ENABLED_FILE" ]; then
+        sudo ln -s $NGINX_CONF_FILE $NGINX_ENABLED_FILE 2>/dev/null || true
+    fi
+
+    run_silent "Проверка конфигурации Nginx" 2 bash -c "sudo nginx -t && sudo systemctl reload nginx"
+    save_state "nginx_done"
 fi
 
-run_silent "Проверка конфигурации Nginx" bash -c "sudo nginx -t && sudo systemctl reload nginx"
+if [ "$CURRENT_STEP" == "start" ] || [ "$CURRENT_STEP" == "nginx_done" ] || [ "$CURRENT_STEP" == "ssl" ]; then
+    step_header "Получение SSL-сертификата"
+    save_state "ssl"
+    
+    if [ -d "/etc/letsencrypt/live/$DOMAIN" ]; then
+        echo -e "  ${GREEN}${CHECK}${NC} SSL-сертификат уже существует"
+    else
+        run_silent "Получение сертификата Let's Encrypt" 3 bash -c "
+            sudo certbot --nginx -d $DOMAIN --email $EMAIL --agree-tos --non-interactive --redirect --max-log-backups 0
+        "
+    fi
 
-step_header "Получение SSL-сертификата"
-if [ -d "/etc/letsencrypt/live/$DOMAIN" ]; then
-    echo -e "  ${GREEN}${CHECK}${NC} SSL-сертификат уже существует"
-else
-    run_silent "Получение сертификата Let's Encrypt" sudo certbot --nginx -d $DOMAIN --email $EMAIL --agree-tos --non-interactive --redirect
+    if [ ! -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
+        echo -e "  ${RED}${CROSS} SSL-сертификат не найден!${NC}"
+        echo -e "${YELLOW}Проверьте:${NC}"
+        echo -e "  1. Домен $DOMAIN указывает на этот сервер"
+        echo -e "  2. Порты 80 и 443 открыты"
+        echo -e "  3. DNS записи обновлены"
+        exit 1
+    fi
+    save_state "ssl_done"
 fi
 
-if [ ! -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
-    echo -e "  ${RED}${CROSS} SSL-сертификат не найден!${NC}"
-    exit 1
-fi
-
-sudo bash -c "cat > $NGINX_CONF_FILE" <<EOF
+if [ "$CURRENT_STEP" == "start" ] || [ "$CURRENT_STEP" == "ssl_done" ] || [ "$CURRENT_STEP" == "final_config" ]; then
+    save_state "final_config"
+    
+    sudo bash -c "cat > $NGINX_CONF_FILE" <<EOF
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
@@ -292,13 +560,21 @@ server {
 }
 EOF
 
-sudo cp -f src/shop_bot/webhook_server/static/502.html /var/www/html/502.html
-echo -e "  ${GREEN}${CHECK}${NC} Страница 502 установлена"
+    sudo mkdir -p /var/www/html 2>/dev/null || true
+    sudo cp -f src/shop_bot/webhook_server/static/502.html /var/www/html/502.html
+    echo -e "  ${GREEN}${CHECK}${NC} Страница 502 установлена"
 
-run_silent "Применение SSL-конфигурации" bash -c "sudo nginx -t && sudo systemctl reload nginx"
+    run_silent "Применение SSL-конфигурации" 2 bash -c "sudo nginx -t && sudo systemctl reload nginx"
+    save_state "final_config_done"
+fi
 
-step_header "Запуск приложения"
-run_docker
+if [ "$CURRENT_STEP" == "start" ] || [ "$CURRENT_STEP" == "final_config_done" ] || [ "$CURRENT_STEP" == "docker" ]; then
+    step_header "Запуск приложения"
+    save_state "docker"
+    run_docker
+    save_state "completed"
+    clear_state
+fi
 
 echo ""
 echo -e "${BOLD}${GREEN}╔════════════════════════════════════════════════════╗${NC}"
