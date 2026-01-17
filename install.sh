@@ -1,13 +1,12 @@
 #!/bin/bash
 
 rm -f /tmp/shopbot_install_state.json 2>/dev/null || true
-
 sudo pkill -9 apt-get 2>/dev/null || true
 sudo pkill -9 apt 2>/dev/null || true
-sudo rm -f /var/lib/apt/lists/lock 2>/dev/null || true
-sudo rm -f /var/cache/apt/archives/lock 2>/dev/null || true
-sudo rm -f /var/lib/dpkg/lock* 2>/dev/null || true
+sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true
 sudo dpkg --configure -a 2>/dev/null || true
+
+set -uo pipefail
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -20,8 +19,6 @@ CHECK="✔"
 CROSS="✖"
 ARROW="➜"
 
-set -uo pipefail
-
 LOG_FILE=$(mktemp)
 STATE_FILE="/tmp/shopbot_install_state.json"
 LOCK_FILE="/tmp/shopbot_install.lock"
@@ -32,12 +29,8 @@ cleanup() {
     local exit_code=$?
     rm -f "$LOG_FILE" "$LOCK_FILE" "$STATE_FILE" 2>/dev/null || true
     tput cnorm 2>/dev/null || true
-    if [ $exit_code -ne 0 ] && [ $exit_code -ne 130 ]; then
-        echo -e "\n${RED}${CROSS} Установка прервана. Состояние сохранено.${NC}"
-        echo -e "${YELLOW}Запустите скрипт снова для продолжения.${NC}"
-    elif [ $exit_code -eq 130 ]; then
-        echo -e "\n${RED}${CROSS} Установка отменена пользователем (Ctrl+C).${NC}"
-    fi
+    [ $exit_code -ne 0 ] && [ $exit_code -ne 130 ] && echo -e "\n${RED}${CROSS} Установка прервана.${NC}"
+    [ $exit_code -eq 130 ] && echo -e "\n${RED}${CROSS} Отменено пользователем.${NC}"
     exit $exit_code
 }
 
@@ -251,29 +244,25 @@ read_input() {
     local saved_value=$(get_state_data "$var_name")
     
     if [ -n "$saved_value" ]; then
-        echo -e "  ${GREEN}Используется сохранённое значение: ${BOLD}${saved_value}${NC}"
         eval "$var_name='$saved_value'"
         return 0
     fi
     
-    if [ ! -t 0 ]; then
-        echo -e "  ${YELLOW}⚠ Интерактивный режим недоступен${NC}"
+    if [ ! -t 0 ] 2>/dev/null; then
         return 1
     fi
     
     local value=""
-    while [ -z "$value" ]; do
-        read -p "$prompt" value < /dev/tty 2>/dev/null || {
-            echo -e "  ${YELLOW}⚠ Невозможно прочитать ввод${NC}"
-            return 1
-        }
-        if [ -z "$value" ]; then
-            echo -e "  ${RED}${CROSS} Значение не может быть пустым. Попробуйте снова.${NC}"
+    echo -e -n "  $prompt"
+    if IFS= read -r -t 30 value 2>/dev/null; then
+        if [ -n "$value" ]; then
+            eval "$var_name='$value'"
+            save_state "input_$var_name" "{\"$var_name\":\"$value\"}"
+            return 0
         fi
-    done
+    fi
     
-    eval "$var_name='$value'"
-    save_state "input_$var_name" "{\"$var_name\":\"$value\"}"
+    return 1
 }
 
 install_docker_compose() {
@@ -546,32 +535,44 @@ if [ "$CURRENT_STEP" == "start" ] || [ "$CURRENT_STEP" == "clone_done" ] || [ "$
     save_state "domain"
     echo ""
     
-    read_input "  Введите домен (например: my-vpn-shop.com): " USER_INPUT_DOMAIN || {
-        echo -e "  ${RED}${CROSS} Не удалось получить домен. Используется example.com${NC}"
-        USER_INPUT_DOMAIN="example.com"
-    }
-    DOMAIN=$(echo "$USER_INPUT_DOMAIN" | sed -e 's%^https\?://%%' -e 's%/.*$%%' -e 's/[^a-zA-Z0-9.-]//g')
+    USER_INPUT_DOMAIN=""
+    EMAIL=""
     
-    if [ -z "$DOMAIN" ]; then
-        DOMAIN="example.com"
+    read_input "Введите домен (пример: vpn.example.com): " USER_INPUT_DOMAIN || {
+        echo ""
+        USER_INPUT_DOMAIN=""
+    }
+    
+    if [ -z "$USER_INPUT_DOMAIN" ]; then
+        USER_INPUT_DOMAIN="vpn.example.com"
+        echo -e "  ${YELLOW}⚠ Используется домен: ${BOLD}${USER_INPUT_DOMAIN}${NC}"
     fi
     
-    read_input "  Введите email (для SSL): " EMAIL || {
-        echo -e "  ${RED}${CROSS} Не удалось получить email. Используется admin@example.com${NC}"
-        EMAIL="admin@example.com"
+    DOMAIN=$(echo "$USER_INPUT_DOMAIN" | sed -e 's%^https\?://%%' -e 's%/.*$%%' -e 's/[^a-zA-Z0-9.-]//g')
+    
+    read_input "Введите email для SSL (пример: admin@example.com): " EMAIL || {
+        echo ""
+        EMAIL=""
     }
     
+    if [ -z "$EMAIL" ]; then
+        EMAIL="admin@example.com"
+        echo -e "  ${YELLOW}⚠ Используется email: ${BOLD}${EMAIL}${NC}"
+    fi
+    
     if ! echo "$EMAIL" | grep -qE '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'; then
-        echo -e "  ${YELLOW}⚠ Некорректный email, но продолжаем...${NC}"
+        echo -e "  ${YELLOW}⚠ Email некорректен, используется: admin@example.com${NC}"
+        EMAIL="admin@example.com"
     fi
     
     echo -e "  ${GREEN}${CHECK}${NC} Домен: ${BOLD}${DOMAIN}${NC}"
+    echo -e "  ${GREEN}${CHECK}${NC} Email: ${BOLD}${EMAIL}${NC}"
     save_state "domain_done" "{\"DOMAIN\":\"$DOMAIN\",\"EMAIL\":\"$EMAIL\"}"
 else
     DOMAIN=$(get_state_data "DOMAIN")
     EMAIL=$(get_state_data "EMAIL")
     if [ -z "$DOMAIN" ]; then
-        DOMAIN="example.com"
+        DOMAIN="vpn.example.com"
     fi
     if [ -z "$EMAIL" ]; then
         EMAIL="admin@example.com"
