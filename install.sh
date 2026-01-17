@@ -467,31 +467,38 @@ echo -e "${YELLOW}Режим: ${BOLD}ПЕРВОНАЧАЛЬНАЯ УСТАНОВ
 if [ "$CURRENT_STEP" == "start" ] || [ "$CURRENT_STEP" == "dependencies" ]; then
     step_header "Установка системных зависимостей"
     save_state "dependencies"
+    
+    sudo pkill -9 apt-get apt 2>/dev/null || true
+    sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true
+    sudo dpkg --configure -a 2>/dev/null || true
+    sleep 2
 
     install_package() {
         local cmd=$1
         local pkg=$2
         
         if ! command -v $cmd &> /dev/null; then
-            echo -e "  ⠋ Установка $pkg..."
+            printf "  ⠋ $pkg..."
             
-            sudo pkill -9 apt-get 2>/dev/null || true
-            sudo pkill -9 apt 2>/dev/null || true
-            sudo rm -f /var/lib/dpkg/lock* 2>/dev/null || true
+            sudo pkill -9 apt-get apt 2>/dev/null || true
+            sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true
             sudo dpkg --configure -a 2>/dev/null || true
-            sleep 2
             
             if sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq 2>&1 | grep -v 'stable CLI interface' >/dev/null 2>&1; then
-                if sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq -o Dpkg::Use-Pty=0 "$pkg" 2>&1 | grep -q "done\|Setting up"; then
-                    echo -e "\r  ${GREEN}${CHECK}${NC} $pkg установлен             "
+                if sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq -o Dpkg::Use-Pty=0 -o Dpkg::Pre-Install-Pkgs="true" "$pkg" >/dev/null 2>&1; then
+                    printf "\r  ${GREEN}${CHECK}${NC} $pkg установлен          \n"
+                    return 0
                 else
-                    echo -e "\r  ${YELLOW}⚠${NC} Проблема с $pkg, продолжаем...   "
+                    printf "\r  ${YELLOW}⚠${NC} $pkg не установлен         \n"
+                    return 1
                 fi
             else
-                echo -e "\r  ${YELLOW}⚠${NC} Не удалось обновить apt, продолжаем... "
+                printf "\r  ${YELLOW}⚠${NC} apt недоступен, пропускаем\n"
+                return 1
             fi
         else
             echo -e "  ${GREEN}${CHECK}${NC} $cmd уже установлен"
+            return 0
         fi
     }
 
@@ -505,7 +512,9 @@ if [ "$CURRENT_STEP" == "start" ] || [ "$CURRENT_STEP" == "dependencies" ]; then
 
     for service in docker nginx; do
         if ! sudo systemctl is-active --quiet $service; then
-            run_silent "Запуск $service" 2 bash -c "sudo systemctl start $service && sudo systemctl enable $service" || true
+            sudo systemctl start $service 2>/dev/null || true
+            sudo systemctl enable $service 2>/dev/null || true
+            echo -e "  ${GREEN}${CHECK}${NC} $service запущен"
         fi
     done
     save_state "dependencies_done"
