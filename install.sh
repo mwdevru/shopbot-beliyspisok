@@ -249,9 +249,17 @@ read_input() {
         return 0
     fi
     
+    if [ ! -t 0 ]; then
+        echo -e "  ${YELLOW}⚠ Интерактивный режим недоступен${NC}"
+        return 1
+    fi
+    
     local value=""
     while [ -z "$value" ]; do
-        read -p "$prompt" value < /dev/tty || true
+        read -p "$prompt" value < /dev/tty 2>/dev/null || {
+            echo -e "  ${YELLOW}⚠ Невозможно прочитать ввод${NC}"
+            return 1
+        }
         if [ -z "$value" ]; then
             echo -e "  ${RED}${CROSS} Значение не может быть пустым. Попробуйте снова.${NC}"
         fi
@@ -286,7 +294,7 @@ run_docker() {
     fi
     
     run_silent "Сборка и запуск контейнеров" 3 bash -c "
-        sudo docker-compose build --no-cache &&
+        sudo docker-compose build --no-cache --quiet &&
         sudo docker-compose up -d &&
         sleep 5 &&
         sudo docker-compose ps | grep -q \"Up\"
@@ -469,8 +477,8 @@ if [ "$CURRENT_STEP" == "start" ] || [ "$CURRENT_STEP" == "dependencies" ]; then
         local pkg=$2
         if ! command -v $cmd &> /dev/null; then
             run_silent "Установка $pkg" 3 bash -c "
-                sudo apt-get update -qq 2>&1 | grep -v 'stable CLI interface' || true &&
-                sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \"$pkg\"
+                sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq 2>&1 | grep -v 'stable CLI interface' || true &&
+                sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq -o Dpkg::Use-Pty=0 \"$pkg\"
             " || echo -e "  ${YELLOW}⚠ Ошибка при установке $pkg, продолжаем...${NC}"
         else
             echo -e "  ${GREEN}${CHECK}${NC} $cmd уже установлен"
@@ -486,7 +494,7 @@ if [ "$CURRENT_STEP" == "start" ] || [ "$CURRENT_STEP" == "dependencies" ]; then
 
     for service in docker nginx; do
         if ! sudo systemctl is-active --quiet $service; then
-            run_silent "Запуск $service" 2 bash -c "sudo systemctl start $service && sudo systemctl enable $service"
+            run_silent "Запуск $service" 2 bash -c "sudo systemctl start $service && sudo systemctl enable $service" || true
         fi
     done
     save_state "dependencies_done"
@@ -516,15 +524,20 @@ if [ "$CURRENT_STEP" == "start" ] || [ "$CURRENT_STEP" == "clone_done" ] || [ "$
     save_state "domain"
     echo ""
     
-    read_input "  Введите домен (например: my-vpn-shop.com): " USER_INPUT_DOMAIN
+    read_input "  Введите домен (например: my-vpn-shop.com): " USER_INPUT_DOMAIN || {
+        echo -e "  ${RED}${CROSS} Не удалось получить домен. Используется example.com${NC}"
+        USER_INPUT_DOMAIN="example.com"
+    }
     DOMAIN=$(echo "$USER_INPUT_DOMAIN" | sed -e 's%^https\?://%%' -e 's%/.*$%%' -e 's/[^a-zA-Z0-9.-]//g')
     
     if [ -z "$DOMAIN" ]; then
-        echo -e "  ${RED}${CROSS} Некорректный домен${NC}"
-        exit 1
+        DOMAIN="example.com"
     fi
     
-    read_input "  Введите email (для SSL): " EMAIL
+    read_input "  Введите email (для SSL): " EMAIL || {
+        echo -e "  ${RED}${CROSS} Не удалось получить email. Используется admin@example.com${NC}"
+        EMAIL="admin@example.com"
+    }
     
     if ! echo "$EMAIL" | grep -qE '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'; then
         echo -e "  ${YELLOW}⚠ Некорректный email, но продолжаем...${NC}"
@@ -535,6 +548,12 @@ if [ "$CURRENT_STEP" == "start" ] || [ "$CURRENT_STEP" == "clone_done" ] || [ "$
 else
     DOMAIN=$(get_state_data "DOMAIN")
     EMAIL=$(get_state_data "EMAIL")
+    if [ -z "$DOMAIN" ]; then
+        DOMAIN="example.com"
+    fi
+    if [ -z "$EMAIL" ]; then
+        EMAIL="admin@example.com"
+    fi
     echo -e "  ${GREEN}Используется домен: ${BOLD}${DOMAIN}${NC}"
 fi
 
@@ -585,7 +604,7 @@ if [ "$CURRENT_STEP" == "start" ] || [ "$CURRENT_STEP" == "nginx_done" ] || [ "$
         echo -e "  ${GREEN}${CHECK}${NC} SSL-сертификат уже существует"
     else
         run_silent "Получение сертификата Let's Encrypt" 3 bash -c "
-            sudo certbot --nginx -d $DOMAIN --email $EMAIL --agree-tos --non-interactive --redirect --max-log-backups 0
+            sudo DEBIAN_FRONTEND=noninteractive certbot --nginx -d $DOMAIN --email $EMAIL --agree-tos --non-interactive --redirect --max-log-backups 0 --quiet
         " || true
     fi
 
